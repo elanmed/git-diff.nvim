@@ -1,6 +1,6 @@
 [submodule "deps/mini.test"]
 	path = deps/mini.test
 	url = https://github.com/nvim-mini/mini.test
-[submodule "panvimdoc"]
-	path = panvimdoc
+[submodule "deps/panvimdoc"]
+	path = deps/panvimdoc
 	url = https://github.com/kdheepak/panvimdoc
