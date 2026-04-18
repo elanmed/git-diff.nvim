@@ -42,6 +42,21 @@ local tbl_reverse = function(input)
   return reversed
 end
 
+--- @generic T
+--- @param val T | nil
+--- @param fallback T
+--- @return T
+local if_nil = function(val, fallback)
+  if val == nil then
+    return fallback
+  end
+  return val
+end
+
+-- ====================
+-- Diff
+-- ====================
+
 --- @class UnpackedHunk
 --- @field start_old_1i number
 --- @field start_old_0i number
@@ -178,53 +193,6 @@ local update_signs = vim.schedule_wrap(function()
   end
 end)
 
-local timer = nil
-vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", }, {
-  group = vim.api.nvim_create_augroup("GitDiffTextEvents", { clear = true, }),
-  callback = function(event)
-    if timer then vim.fn.timer_stop(timer) end
-
-    timer = vim.fn.timer_start(300, async(function()
-      if event.buf ~= vim.api.nvim_get_current_buf() then return end
-      await(function(resolve) update_state_for_buf(event.buf, resolve) end)
-      update_signs()
-    end))
-  end,
-})
-
-vim.api.nvim_create_autocmd({ "BufWinEnter", "BufEnter", "BufWritePost", }, {
-  group = vim.api.nvim_create_augroup("GitDiffBufEvents", { clear = true, }),
-  callback = async(function(event)
-    if event.buf ~= vim.api.nvim_get_current_buf() then return end
-    await(function(resolve) update_state_for_buf(event.buf, resolve) end)
-    update_signs()
-  end),
-})
-
-vim.api.nvim_create_autocmd("User", {
-  group = vim.api.nvim_create_augroup("GitDiffIndexEvents", { clear = true, }),
-  pattern = { "GitIndexChanged", },
-  callback = async(function()
-    local bufs = {}
-    for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
-      if vim.bo[bufnr].buftype == "" and vim.api.nvim_buf_is_loaded(bufnr) then
-        table.insert(bufs, bufnr)
-      end
-    end
-
-    for _, bufnr in ipairs(bufs) do
-      await(function(resolve) update_state_for_buf(bufnr, resolve) end)
-    end
-    update_signs()
-  end),
-})
-
-vim.api.nvim_create_autocmd("BufDelete", {
-  group = vim.api.nvim_create_augroup("GitDiffCleanup", { clear = true, }),
-  callback = function(event)
-    buffer_state[event.buf] = nil
-  end,
-})
 
 --- @param direction 'next' | 'prev'
 local function navigate_hunk(direction)
@@ -277,9 +245,6 @@ local function navigate_hunk(direction)
   vim.api.nvim_win_set_cursor(0, { next_hunk_row_1i, 0, })
 end
 
-vim.keymap.set("n", "<Plug>GitDiffNextHunk", function() navigate_hunk "next" end, { desc = "Navigate to the next hunk", })
-vim.keymap.set("n", "<Plug>GitDiffPrevHunk", function() navigate_hunk "prev" end, { desc = "Navigate to the prev hunk", })
-
 --- @class ResetHunkOpts
 --- @field state DiffState
 --- @field start_line_1i number
@@ -319,63 +284,128 @@ local function reset_hunk(opts)
   end
 end
 
-vim.keymap.set("n", "<Plug>GitDiffResetHunk", function()
-  local curr_bufnr = vim.api.nvim_get_current_buf()
-  local state = buffer_state[curr_bufnr]
-  if state == nil then
-    return vim.notify("Missing diff state for this buffer", vim.log.levels.ERROR)
-  end
+M.setup_autocommands = function()
+  local timer = nil
+  vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", }, {
+    group = vim.api.nvim_create_augroup("GitDiffTextEvents", { clear = true, }),
+    callback = function(event)
+      if timer then vim.fn.timer_stop(timer) end
 
-  local row_1i = vim.api.nvim_win_get_cursor(0)[1]
-  reset_hunk { state = state, curr_bufnr = curr_bufnr, start_line_1i = row_1i, end_line_1i_incl = row_1i, }
-end, { desc = "Reset the hunk on the current line", })
+      timer = vim.fn.timer_start(300, async(function()
+        if event.buf ~= vim.api.nvim_get_current_buf() then return end
+        await(function(resolve) update_state_for_buf(event.buf, resolve) end)
+        update_signs()
+      end))
+    end,
+  })
 
-vim.keymap.set("v", "<Plug>GitDiffResetHunk", function()
-  local curr_bufnr = vim.api.nvim_get_current_buf()
-  local state = buffer_state[curr_bufnr]
-  if state == nil then
-    return vim.notify("Missing diff state for this buffer", vim.log.levels.ERROR)
-  end
+  vim.api.nvim_create_autocmd({ "BufWinEnter", "BufEnter", "BufWritePost", }, {
+    group = vim.api.nvim_create_augroup("GitDiffBufEvents", { clear = true, }),
+    callback = async(function(event)
+      if event.buf ~= vim.api.nvim_get_current_buf() then return end
+      await(function(resolve) update_state_for_buf(event.buf, resolve) end)
+      update_signs()
+    end),
+  })
 
-  local start_visual_1i = vim.fn.line "v"
-  local end_visual_1i = vim.fn.line "."
-  local start_selection_1i = math.min(start_visual_1i, end_visual_1i)
-  local end_selection_1i = math.max(start_visual_1i, end_visual_1i)
-
-  reset_hunk { state = state, curr_bufnr = curr_bufnr, start_line_1i = start_selection_1i, end_line_1i_incl = end_selection_1i, }
-end, { desc = "Reset the visually selected hunk", })
-
-vim.keymap.set("n", "<Plug>GitDiffResetFile", function()
-  local curr_bufnr = vim.api.nvim_get_current_buf()
-  local state = buffer_state[curr_bufnr]
-  if state == nil then
-    return vim.notify("Missing diff state for this buffer", vim.log.levels.ERROR)
-  end
-
-  reset_hunk {
-    state = state,
-    curr_bufnr = curr_bufnr,
-    start_line_1i = 1,
-    end_line_1i_incl = vim.api.nvim_buf_line_count(curr_bufnr),
-  }
-end, { desc = "Reset the entire file", })
-
-vim.system({ "git", "rev-parse", "--absolute-git-dir", }, {}, function(result)
-  if result.code ~= 0 then return end
-  local git_dir = vim.trim(result.stdout)
-
-  local index_watch = vim.uv.new_fs_event()
-  if index_watch == nil then return end
-
-  index_watch:start(git_dir, {}, function(_, filename)
-    vim.schedule(function()
-      if filename == "index" then
-        vim.api.nvim_exec_autocmds("User", { pattern = "GitIndexChanged", })
-      elseif filename == "HEAD" then
-        vim.api.nvim_exec_autocmds("User", { pattern = "GitHeadChanged", })
+  vim.api.nvim_create_autocmd("User", {
+    group = vim.api.nvim_create_augroup("GitDiffIndexEvents", { clear = true, }),
+    pattern = { "GitIndexChanged", },
+    callback = async(function()
+      local bufs = {}
+      for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.bo[bufnr].buftype == "" and vim.api.nvim_buf_is_loaded(bufnr) then
+          table.insert(bufs, bufnr)
+        end
       end
+
+      for _, bufnr in ipairs(bufs) do
+        await(function(resolve) update_state_for_buf(bufnr, resolve) end)
+      end
+      update_signs()
+    end),
+  })
+
+  vim.api.nvim_create_autocmd("BufDelete", {
+    group = vim.api.nvim_create_augroup("GitDiffCleanup", { clear = true, }),
+    callback = function(event)
+      buffer_state[event.buf] = nil
+    end,
+  })
+end
+
+M.setup_file_watcher = function()
+  vim.system({ "git", "rev-parse", "--absolute-git-dir", }, {}, function(result)
+    if result.code ~= 0 then return end
+    local git_dir = vim.trim(result.stdout)
+
+    local index_watch = vim.uv.new_fs_event()
+    if index_watch == nil then return end
+
+    index_watch:start(git_dir, {}, function(_, filename)
+      vim.schedule(function()
+        if filename == "index" then
+          vim.api.nvim_exec_autocmds("User", { pattern = "GitIndexChanged", })
+        elseif filename == "HEAD" then
+          vim.api.nvim_exec_autocmds("User", { pattern = "GitHeadChanged", })
+        end
+      end)
     end)
   end)
-end)
+end
+
+M.setup_keymaps = function()
+  vim.keymap.set("n", "<Plug>GitDiffNextHunk", function() navigate_hunk "next" end,
+    { desc = "Navigate to the next hunk", })
+  vim.keymap.set("n", "<Plug>GitDiffPrevHunk", function() navigate_hunk "prev" end,
+    { desc = "Navigate to the prev hunk", })
+
+  vim.keymap.set("n", "<Plug>GitDiffResetHunk", function()
+    local curr_bufnr = vim.api.nvim_get_current_buf()
+    local state = buffer_state[curr_bufnr]
+    if state == nil then
+      return vim.notify("Missing diff state for this buffer", vim.log.levels.ERROR)
+    end
+
+    local row_1i = vim.api.nvim_win_get_cursor(0)[1]
+    reset_hunk { state = state, curr_bufnr = curr_bufnr, start_line_1i = row_1i, end_line_1i_incl = row_1i, }
+  end, { desc = "Reset the hunk on the current line", })
+
+  vim.keymap.set("v", "<Plug>GitDiffResetHunk", function()
+    local curr_bufnr = vim.api.nvim_get_current_buf()
+    local state = buffer_state[curr_bufnr]
+    if state == nil then
+      return vim.notify("Missing diff state for this buffer", vim.log.levels.ERROR)
+    end
+
+    local start_visual_1i = vim.fn.line "v"
+    local end_visual_1i = vim.fn.line "."
+    local start_selection_1i = math.min(start_visual_1i, end_visual_1i)
+    local end_selection_1i = math.max(start_visual_1i, end_visual_1i)
+
+    reset_hunk { state = state, curr_bufnr = curr_bufnr, start_line_1i = start_selection_1i, end_line_1i_incl = end_selection_1i, }
+  end, { desc = "Reset the visually selected hunk", })
+
+  vim.keymap.set("n", "<Plug>GitDiffResetFile", function()
+    local curr_bufnr = vim.api.nvim_get_current_buf()
+    local state = buffer_state[curr_bufnr]
+    if state == nil then
+      return vim.notify("Missing diff state for this buffer", vim.log.levels.ERROR)
+    end
+
+    reset_hunk {
+      state = state,
+      curr_bufnr = curr_bufnr,
+      start_line_1i = 1,
+      end_line_1i_incl = vim.api.nvim_buf_line_count(curr_bufnr),
+    }
+  end, { desc = "Reset the entire file", })
+end
+
+M.setup = function()
+  M.setup_autocommands()
+  M.setup_file_watcher()
+  M.setup_keymaps()
+end
 
 return M

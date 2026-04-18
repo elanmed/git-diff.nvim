@@ -12,16 +12,3 @@ git-diff-plug-remaps-<plug>gitdiffresethunk	git-diff.txt	/*git-diff-plug-remaps-
 git-diff-table-of-contents	git-diff.txt	/*git-diff-table-of-contents*
 git-diff-todo:	git-diff.txt	/*git-diff-todo:*
 git-diff.txt	git-diff.txt	/*git-diff.txt*
-quickfix-preview-autocommand-events	quickfix-preview.txt	/*quickfix-preview-autocommand-events*
-quickfix-preview-autocommand-events-user-githeadchanged	quickfix-preview.txt	/*quickfix-preview-autocommand-events-user-githeadchanged*
-quickfix-preview-example-config	quickfix-preview.txt	/*quickfix-preview-example-config*
-quickfix-preview-features	quickfix-preview.txt	/*quickfix-preview-features*
-quickfix-preview-highlight-groups	quickfix-preview.txt	/*quickfix-preview-highlight-groups*
-quickfix-preview-plug-remaps	quickfix-preview.txt	/*quickfix-preview-plug-remaps*
-quickfix-preview-plug-remaps-<plug>gitdiffnexthunk	quickfix-preview.txt	/*quickfix-preview-plug-remaps-<plug>gitdiffnexthunk*
-quickfix-preview-plug-remaps-<plug>gitdiffprevhunk	quickfix-preview.txt	/*quickfix-preview-plug-remaps-<plug>gitdiffprevhunk*
-quickfix-preview-plug-remaps-<plug>gitdiffresetfile	quickfix-preview.txt	/*quickfix-preview-plug-remaps-<plug>gitdiffresetfile*
-quickfix-preview-plug-remaps-<plug>gitdiffresethunk	quickfix-preview.txt	/*quickfix-preview-plug-remaps-<plug>gitdiffresethunk*
-quickfix-preview-table-of-contents	quickfix-preview.txt	/*quickfix-preview-table-of-contents*
-quickfix-preview-todo:	quickfix-preview.txt	/*quickfix-preview-todo:*
-quickfix-preview.txt	quickfix-preview.txt	/*quickfix-preview.txt*

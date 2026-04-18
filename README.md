@@ -16,9 +16,9 @@ Show git diff signs in the sign column and navigate, reset hunks.
 ```lua
 vim.keymap.set("n", "]h", "<Plug>GitDiffNextHunk")
 vim.keymap.set("n", "[h", "<Plug>GitDiffPrevHunk")
-vim.keymap.set("n", "<leader>gh", "<Plug>GitDiffResetHunk")
-vim.keymap.set("v", "<leader>gh", "<Plug>GitDiffResetHunk")
-vim.keymap.set("n", "<leader>gH", "<Plug>GitDiffResetFile")
+vim.keymap.set("n", "gh", "<Plug>GitDiffResetHunk")
+vim.keymap.set("v", "gh", "<Plug>GitDiffResetHunk")
+vim.keymap.set("n", "gH", "<Plug>GitDiffResetFile")
 ```
 
 ## Plug remaps
@@ -61,3 +61,4 @@ Fired automatically when `.git/HEAD` changes on disk (e.g. `git checkout <branch
 ## TODO:
 
 - [ ] Test coverage
+- [ ] Config (disabling, debounce time)
