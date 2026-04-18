@@ -30,11 +30,81 @@ local await = function(promise)
 end
 
 -- ====================
--- Async helpers
+-- Misc utils
 -- ====================
 
+--- @param input table
+local tbl_reverse = function(input)
+  local reversed = {}
+  for index = #input, 1, -1 do
+    table.insert(reversed, input[index])
+  end
+  return reversed
+end
+
+--- @class UnpackedHunk
+--- @field start_old_1i number
+--- @field start_old_0i number
+--- @field count_old number
+--- @field end_old_1i_excl number
+--- @field end_old_1i_incl number
+--- @field end_old_0i_excl number
+--- @field end_old_0i_incl number
+--- @field start_new_1i number
+--- @field start_new_0i number
+--- @field count_new number
+--- @field end_new_1i_excl number
+--- @field end_new_1i_incl number
+--- @field end_new_0i_excl number
+--- @field end_new_0i_incl number
+--- @field is_deletion boolean
+--- @field is_insertion boolean
+
+--- @alias DiffHunk { [1]: integer, [2]: integer, [3]: integer, [4]: integer }
+--- @param hunk DiffHunk
+--- @return UnpackedHunk
+M.unpack_hunk = function(hunk)
+  local start_old_1i, count_old, start_new_1i, count_new = unpack(hunk)
+
+  local start_old_0i = start_old_1i - 1
+  local end_old_1i_excl = start_old_1i + count_old
+  local end_old_1i_incl = end_old_1i_excl - 1
+  local end_old_0i_excl = end_old_1i_excl - 1
+  local end_old_0i_incl = end_old_1i_incl - 1
+
+  local start_new_0i = start_new_1i - 1
+  local end_new_1i_excl = start_new_1i + count_new
+  local end_new_1i_incl = end_new_1i_excl - 1
+  local end_new_0i_excl = end_new_1i_excl - 1
+  local end_new_0i_incl = end_new_1i_incl - 1
+
+  local is_deletion = count_new == 0
+  local is_insertion = count_old == 0
+
+  return {
+    start_old_1i = start_old_1i,
+    start_old_0i = start_old_0i,
+    count_old = count_old,
+    end_old_1i_excl = end_old_1i_excl,
+    end_old_1i_incl = end_old_1i_incl,
+    end_old_0i_excl = end_old_0i_excl,
+    end_old_0i_incl = end_old_0i_incl,
+
+    start_new_1i = start_new_1i,
+    start_new_0i = start_new_0i,
+    count_new = count_new,
+    end_new_1i_excl = end_new_1i_excl,
+    end_new_1i_incl = end_new_1i_incl,
+    end_new_0i_excl = end_new_0i_excl,
+    end_new_0i_incl = end_new_0i_incl,
+
+    is_deletion = is_deletion,
+    is_insertion = is_insertion,
+  }
+end
+
 --- @class DiffState
---- @field indices integer[][]
+--- @field indices DiffHunk[]
 --- @field head_lines string[]
 
 --- @type table<number, DiffState>
@@ -64,6 +134,7 @@ local function update_state_for_buf(bufnr, resolve)
     local head_lines = vim.split(head_str, "\n", { trimempty = true, })
     local wt_str = worktree_str:gsub("\n$", "") .. "\n"
 
+    --- @type DiffHunk[]
     local indices = vim.text.diff(head_str, wt_str, { result_type = "indices", })
     buffer_state[bufnr] = {
       indices = indices,
@@ -83,7 +154,7 @@ local update_signs = vim.schedule_wrap(function()
 
   local rows_to_hl = {}
   for _, raw_hunk in ipairs(state.indices) do
-    local hunk = require "helpers".diff.unpack_hunk(raw_hunk)
+    local hunk = M.unpack_hunk(raw_hunk)
 
     local hunk_hl_group = (function()
       if hunk.is_deletion then return "DiffSignDelete" end
@@ -166,7 +237,7 @@ local function navigate_hunk(direction)
 
   local indices = (function()
     if direction == "next" then return state.indices end
-    return require "helpers".tbl.reverse(state.indices)
+    return tbl_reverse(state.indices)
   end)()
 
   if #indices == 0 then
@@ -177,7 +248,7 @@ local function navigate_hunk(direction)
   local next_hunk_row_1i = nil
 
   for _, raw_hunk in ipairs(indices) do
-    local hunk = require "helpers".diff.unpack_hunk(raw_hunk)
+    local hunk = M.unpack_hunk(raw_hunk)
     if direction == "next" then
       if hunk.start_new_1i > row_1i then
         next_hunk_row_1i = hunk.start_new_1i
@@ -193,11 +264,11 @@ local function navigate_hunk(direction)
 
   if next_hunk_row_1i == nil then
     if direction == "next" then
-      local hunk = require "helpers".diff.unpack_hunk(indices[1])
+      local hunk = M.unpack_hunk(indices[1])
       vim.api.nvim_win_set_cursor(0, { hunk.start_new_1i, 0, })
       return vim.notify("Wrapping to the first hunk", vim.log.levels.INFO)
     else
-      local hunk = require "helpers".diff.unpack_hunk(indices[#indices])
+      local hunk = M.unpack_hunk(indices[#indices])
       vim.api.nvim_win_set_cursor(0, { hunk.start_new_1i, 0, })
       return vim.notify("Wrapping to the last hunk", vim.log.levels.INFO)
     end
@@ -218,7 +289,7 @@ vim.keymap.set("n", "<Plug>GitDiffPrevHunk", function() navigate_hunk "prev" end
 local function reset_hunk(opts)
   local matching_hunks = {}
   for _, raw_hunk in ipairs(opts.state.indices) do
-    local hunk = require "helpers".diff.unpack_hunk(raw_hunk)
+    local hunk = M.unpack_hunk(raw_hunk)
 
     local hunk_overlaps_range = false
     if hunk.is_deletion then
@@ -236,7 +307,7 @@ local function reset_hunk(opts)
     end
   end
 
-  for _, hunk in ipairs(require "helpers".tbl.reverse(matching_hunks)) do
+  for _, hunk in ipairs(tbl_reverse(matching_hunks)) do
     local head_chunk = vim.list_slice(opts.state.head_lines, hunk.start_old_1i, hunk.end_old_1i_incl)
 
     if hunk.is_deletion then
