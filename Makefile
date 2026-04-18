@@ -16,7 +16,7 @@ lint:
 
 docs:
 	./deps/panvimdoc/panvimdoc.sh \
-		--project-name quickfix-preview \
+		--project-name git-diff \
 		--input-file README.md \
 		--toc true \
 		--description "" \
