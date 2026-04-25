@@ -1,6 +1,6 @@
 # `git-diff.nvim`
 
-Show git diff signs in the sign column and navigate, reset hunks.
+A minimal plugin to view, navigate, and reset git hunks
 
 ## Features
 

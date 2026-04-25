@@ -1,5 +1,5 @@
 *git-diff.txt*
-                                For NVIM v0.13.0    Last change: 2026 April 17
+                                For NVIM v0.13.0    Last change: 2026 April 24
 
 ==============================================================================
 Table of Contents                                 *git-diff-table-of-contents*
@@ -16,7 +16,7 @@ Table of Contents                                 *git-diff-table-of-contents*
   - User GitIndexChanged    |git-diff-autocommand-events-user-gitindexchanged|
   - User GitHeadChanged      |git-diff-autocommand-events-user-githeadchanged|
 6. TODO:                                                      |git-diff-todo:|
-Show git diff signs in the sign column and navigate, reset hunks.
+A minimal plugin to view, navigate, and reset git hunks
 
 
 ==============================================================================
