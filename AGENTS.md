@@ -13,6 +13,8 @@ A minimal Neovim plugin to view, navigate, and reset git hunks.
 - **Tests**: `tests/test_e2e.lua` — see the `testing` skill
 - **Scripts**: `scripts/minimal_init.lua` — Neovim init for headless testing
 - **No dependencies** beyond Neovim builtins (`vim.text.diff`, `vim.system`, `vim.uv`)
+- **Targets nightly Neovim**. Uses modern APIs — when in doubt, check `:help` docs.
+  - To look up a Neovim API: `nvim --headless -c "help vim.text.diff" -c "%w! /tmp/help.txt" -c "qa" && cat /tmp/help.txt`
 
 ### Async pattern
 
