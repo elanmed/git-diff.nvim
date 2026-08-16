@@ -155,21 +155,36 @@ local vim_system_stdout = async(
 --- @field file_location FileLocation
 --- @field filename string
 --- @field branch? string
+--- @field file_bufnr? number
 
 --- @type fun(opts: ResolveFileContentsParams): Promise<string?>
 local resolve_file_contents = async(
 --- @param opts ResolveFileContentsParams
   function(resolve, opts)
-    if opts.file_location == "worktree" then
-      resolve(table.concat(vim.fn.readfile(opts.filename), "\n"))
-    elseif opts.file_location == "index" then
-      resolve(await(vim_system_stdout { "git", "show", ":" .. opts.filename, }))
-    elseif opts.file_location == "head" then
-      resolve(await(vim_system_stdout { "git", "show", "HEAD:" .. opts.filename, }))
-    elseif opts.file_location == "upstream" then
-      local branch = if_nil(opts.branch, "master")
-      resolve(await(vim_system_stdout { "git", "show", "origin/" .. branch .. ":" .. opts.filename, }))
-    end
+    --- @type fun(): Promise<string?>
+    local file_contents_promise = async(function(resolve_inner)
+      if opts.file_location == "worktree" then
+        if opts.file_bufnr == nil then
+          local file_lines = vim.fn.readfile(opts.filename)
+          resolve_inner(table.concat(file_lines, "\n"))
+        else
+          local buf_lines = vim.api.nvim_buf_get_lines(opts.file_bufnr, 0, -1, false)
+          resolve_inner(table.concat(buf_lines, "\n"))
+        end
+      elseif opts.file_location == "index" then
+        resolve_inner(await(vim_system_stdout { "git", "show", ":" .. opts.filename, }))
+      elseif opts.file_location == "head" then
+        resolve_inner(await(vim_system_stdout { "git", "show", "HEAD:" .. opts.filename, }))
+      elseif opts.file_location == "upstream" then
+        local branch = if_nil(opts.branch, "master")
+        resolve_inner(await(vim_system_stdout { "git", "show", "origin/" .. branch .. ":" .. opts.filename, }))
+      end
+    end)
+
+    local file_contents = await(file_contents_promise())
+    if file_contents == nil then return resolve(nil) end
+
+    resolve(file_contents:gsub("\n$", "") .. "\n")
   end
 )
 
@@ -178,14 +193,25 @@ local resolve_file_contents = async(
 --- @field new_file_location FileLocation
 --- @field filename string
 --- @field branch? string
+--- @field file_bufnr? number
 
 --- @type fun(opts: GenerateDiffParams): Promise<DiffHunk[]?>
 local generate_diff = async(
 --- @param opts GenerateDiffParams
   function(resolve, opts)
-    local old_str = await(resolve_file_contents { file_location = opts.old_file_location, filename = opts.filename, branch = opts.branch, })
+    local old_str = await(resolve_file_contents {
+      file_location = opts.old_file_location,
+      filename = opts.filename,
+      branch = opts.branch,
+      file_bufnr = opts.file_bufnr,
+    })
     if old_str == nil then return resolve(nil) end
-    local new_str = await(resolve_file_contents { file_location = opts.new_file_location, filename = opts.filename, branch = opts.branch, })
+    local new_str = await(resolve_file_contents {
+      file_location = opts.new_file_location,
+      filename = opts.filename,
+      branch = opts.branch,
+      file_bufnr = opts.file_bufnr,
+    })
     if new_str == nil then return resolve(nil) end
 
     resolve(vim.text.diff(old_str, new_str, { result_type = "indices", }))
@@ -209,7 +235,7 @@ local update_state_for_buf =
       local bufname = vim.fs.relpath(vim.fn.getcwd(), vim.api.nvim_buf_get_name(bufnr))
       if bufname == nil then return resolve() end
 
-      local indices = await(generate_diff { filename = bufname, old_file_location = "index", new_file_location = "worktree", })
+      local indices = await(generate_diff { filename = bufname, old_file_location = "index", new_file_location = "worktree", file_bufnr = bufnr, })
       if indices == nil then return resolve() end
 
       local index_str = await(resolve_file_contents { file_location = "index", filename = bufname, })
