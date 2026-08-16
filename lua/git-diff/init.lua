@@ -40,7 +40,7 @@ local await = function(promise)
   local thread = coroutine.running()
   assert(thread ~= nil, "`await` can only be called in a coroutine")
   local scheduled_promise = vim.schedule_wrap(promise)
-  local resolve = function(...) safe_resume(thread, ...) end
+  local resolve = vim.schedule_wrap(function(...) safe_resume(thread, ...) end)
   scheduled_promise(resolve)
   return coroutine.yield()
 end
@@ -526,8 +526,9 @@ end
 
 --- @type fun(opts: GenerateDiffParams): nil
 local open_diff_view = unwaited_async(
+--- @param resolve Resolve<any>
 --- @param opts GenerateDiffParams
-  function(opts)
+  function(_, opts)
     vim.cmd.tabnew()
 
     local new_winnr = vim.api.nvim_get_current_win()
@@ -578,9 +579,16 @@ local open_diff_view = unwaited_async(
     local file_list_lines = vim.split(file_list_str, "\n", { trimempty = true, })
 
     local list_bufnr = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(list_bufnr, 0, -1, false, file_list_lines)
     local list_winnr = vim.api.nvim_open_win(list_bufnr, true, {
-      split = "below",
-      win = new_winnr,
+      relative = "editor",
+      anchor = "SW",
+      width = vim.o.columns,
+      height = 10,
+      row = vim.o.lines,
+      col = 0,
+      style = "minimal",
+      border = "single",
     })
   end
 )
@@ -596,9 +604,6 @@ local demo = function()
   open_diff_view { filename = curr_bufname, new_file_location = "worktree", old_file_location = "index", branch = "master", file_bufnr = bufnr, }
 end
 demo()
-
-
-open_diff_view {}
 
 M.setup = function()
   setup_autocommands()
