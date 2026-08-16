@@ -161,29 +161,26 @@ local vim_system_stdout = async(
 local resolve_file_contents = async(
 --- @param opts ResolveFileContentsParams
   function(resolve, opts)
-    --- @type fun(): Promise<string?>
-    local file_contents_promise = async(function(resolve_inner)
-      if opts.file_location == "worktree" then
-        if opts.file_bufnr == nil then
-          local file_lines = vim.fn.readfile(opts.filename)
-          resolve_inner(table.concat(file_lines, "\n"))
-        else
-          local buf_lines = vim.api.nvim_buf_get_lines(opts.file_bufnr, 0, -1, false)
-          resolve_inner(table.concat(buf_lines, "\n"))
-        end
-      elseif opts.file_location == "index" then
-        resolve_inner(await(vim_system_stdout { "git", "show", ":" .. opts.filename, }))
-      elseif opts.file_location == "head" then
-        resolve_inner(await(vim_system_stdout { "git", "show", "HEAD:" .. opts.filename, }))
-      elseif opts.file_location == "upstream" then
-        local branch = if_nil(opts.branch, "master")
-        resolve_inner(await(vim_system_stdout { "git", "show", "origin/" .. branch .. ":" .. opts.filename, }))
+    local file_contents --- @type string?
+
+    if opts.file_location == "worktree" then
+      if opts.file_bufnr == nil then
+        local file_lines = vim.fn.readfile(opts.filename)
+        file_contents = table.concat(file_lines, "\n")
+      else
+        local buf_lines = vim.api.nvim_buf_get_lines(opts.file_bufnr, 0, -1, false)
+        file_contents = table.concat(buf_lines, "\n")
       end
-    end)
+    elseif opts.file_location == "index" then
+      file_contents = await(vim_system_stdout { "git", "show", ":" .. opts.filename, })
+    elseif opts.file_location == "head" then
+      file_contents = await(vim_system_stdout { "git", "show", "HEAD:" .. opts.filename, })
+    elseif opts.file_location == "upstream" then
+      local branch = if_nil(opts.branch, "master")
+      file_contents = await(vim_system_stdout { "git", "show", "origin/" .. branch .. ":" .. opts.filename, })
+    end
 
-    local file_contents = await(file_contents_promise())
     if file_contents == nil then return resolve(nil) end
-
     resolve(file_contents:gsub("\n$", "") .. "\n")
   end
 )
