@@ -9,17 +9,25 @@ local function safe_resume(...)
   if not ok then error(err) end
 end
 
---- @param fn fun(...):nil
+--- @generic T
+--- @param fn fun(resolve: Resolve<T>, ...: any): nil
+--- @return fun(...: any): Promise<T>
 local async = function(fn)
   return function(...)
-    safe_resume(coroutine.create(fn), ...)
+    local args = { ..., }
+    return function(resolve)
+      local thread = coroutine.create(fn)
+      safe_resume(thread, resolve, table.unpack(args))
+    end
   end
 end
 
---- @alias Resolve fun():nil
---- @alias Promise fun(resolve: Resolve):nil
+--- @alias Resolve<T> fun(value?: T): nil
+--- @alias Promise<T> fun(resolve: Resolve<T>): nil
 
---- @param promise Promise
+--- @generic T
+--- @param promise Promise<T>
+--- @return T
 local await = function(promise)
   local thread = coroutine.running()
   assert(thread ~= nil, "`await` can only be called in a coroutine")
@@ -118,46 +126,96 @@ M.unpack_hunk = function(hunk)
   }
 end
 
+--- @alias FileLocation "worktree" | "index" | "head" | "upstream"
+
+--- @type fun(cmd: string[], opts: vim.SystemOpts?): Promise<string?>
+local vim_system_stdout = async(
+--- @param cmd string[]
+--- @param opts vim.SystemOpts?
+  function(resolve, cmd, opts)
+    --- @type vim.SystemCompleted
+    local out = await(function(inner_resolve) vim.system(cmd, opts, inner_resolve) end)
+    if out.code ~= 0 then
+      return resolve(nil)
+    end
+
+    return resolve(out.stdout)
+  end
+)
+
+--- @class ResolveFileContentsParams
+--- @field file_location FileLocation
+--- @field filename string
+--- @field branch? string
+
+--- @type fun(opts: ResolveFileContentsParams): Promise<string?>
+local resolve_file_contents = async(
+--- @param opts ResolveFileContentsParams
+  function(resolve, opts)
+    if opts.file_location == "worktree" then
+      resolve(table.concat(vim.fn.readfile(opts.filename), "\n"))
+    elseif opts.file_location == "index" then
+      resolve(await(vim_system_stdout { "git", "show", ":" .. opts.filename, }))
+    elseif opts.file_location == "head" then
+      resolve(await(vim_system_stdout { "git", "show", "HEAD:" .. opts.filename, }))
+    elseif opts.file_location == "upstream" then
+      local branch = if_nil(opts.branch, "master")
+      resolve(await(vim_system_stdout { "git", "show", "origin/" .. branch .. ":" .. opts.filename, }))
+    end
+  end
+)
+
+--- @class GenerateDiffParams
+--- @field old_file_location FileLocation
+--- @field new_file_location FileLocation
+--- @field filename string
+--- @field branch? string
+
+--- @type fun(opts: GenerateDiffParams): Promise<DiffHunk[]?>
+local generate_diff = async(
+--- @param opts GenerateDiffParams
+  function(resolve, opts)
+    local old_str = resolve_file_contents { file_location = opts.old_file_location, filename = opts.filename, branch = opts.branch, }
+    if old_str == nil then return resolve(nil) end
+    local new_str = resolve_file_contents { file_location = opts.new_file_location, filename = opts.filename, branch = opts.branch, }
+    if new_str == nil then return resolve(nil) end
+
+    resolve(vim.text.diff(old_str, new_str, { result_type = "indices", }))
+  end
+)
+
 --- @class DiffState
 --- @field indices DiffHunk[]
---- @field head_lines string[]
+--- @field index_lines string[]
 
 --- @type table<number, DiffState>
 local buffer_state = {}
 
 local ns_id = vim.api.nvim_create_namespace "GitDiff"
 
+--- @type fun(bufnr: number): Promise
+local update_state_for_buf =
 --- @param bufnr number
---- @param resolve Resolve
-local function update_state_for_buf(bufnr, resolve)
-  async(function()
-    if not vim.api.nvim_buf_is_valid(bufnr) then return resolve() end
-    local bufname = vim.fs.relpath(vim.fn.getcwd(), vim.api.nvim_buf_get_name(bufnr))
-    if bufname == nil then return resolve() end
+    async(function(resolve, bufnr)
+      if not vim.api.nvim_buf_is_valid(bufnr) then return resolve() end
+      local bufname = vim.fs.relpath(vim.fn.getcwd(), vim.api.nvim_buf_get_name(bufnr))
+      if bufname == nil then return resolve() end
 
-    local worktree_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-    local worktree_str = table.concat(worktree_lines, "\n")
+      local indices = await(generate_diff { filename = bufname, old_file_location = "index", new_file_location = "worktree", })
+      if indices == nil then return nil end
 
-    local out = await(function(inner_resolve)
-      vim.system({ "git", "show", ":" .. bufname, }, inner_resolve)
-    end)
-    if out.code ~= 0 then return resolve() end
-    local head_str = out.stdout
-    if head_str == nil then return resolve() end
+      local index_str = await(resolve_file_contents { file_location = "index", filename = bufname, })
+      vim.print { index_str = index_str, }
+      if index_str == nil then return nil end
+      local index_lines = vim.split(index_str, "\n", { trimempty = true, })
 
-    head_str = head_str:gsub("\n$", "") .. "\n"
-    local head_lines = vim.split(head_str, "\n", { trimempty = true, })
-    local wt_str = worktree_str:gsub("\n$", "") .. "\n"
-
-    --- @type DiffHunk[]
-    local indices = vim.text.diff(head_str, wt_str, { result_type = "indices", })
-    buffer_state[bufnr] = {
-      indices = indices,
-      head_lines = head_lines,
-    }
-    resolve()
-  end)()
-end
+      buffer_state[bufnr] = {
+        indices = indices,
+        index_lines = index_lines,
+      }
+      resolve()
+    end
+    )
 
 local update_signs = vim.schedule_wrap(function()
   local curr_bufnr = vim.api.nvim_get_current_buf()
@@ -273,7 +331,7 @@ local function reset_hunk(opts)
   end
 
   for _, hunk in ipairs(tbl_reverse(matching_hunks)) do
-    local head_chunk = vim.list_slice(opts.state.head_lines, hunk.start_old_1i, hunk.end_old_1i_incl)
+    local head_chunk = vim.list_slice(opts.state.index_lines, hunk.start_old_1i, hunk.end_old_1i_incl)
 
     if hunk.is_deletion then
       local insert_after_0i = hunk.start_new_0i + 1
@@ -293,7 +351,7 @@ M.setup_autocommands = function()
 
       timer = vim.fn.timer_start(300, async(function()
         if event.buf ~= vim.api.nvim_get_current_buf() then return end
-        await(function(resolve) update_state_for_buf(event.buf, resolve) end)
+        await(update_state_for_buf(event.buf))
         update_signs()
       end))
     end,
@@ -301,9 +359,9 @@ M.setup_autocommands = function()
 
   vim.api.nvim_create_autocmd({ "BufWinEnter", "BufEnter", "BufWritePost", }, {
     group = vim.api.nvim_create_augroup("GitDiffBufEvents", { clear = true, }),
-    callback = async(function(event)
+    callback = async(function(_, event)
       if event.buf ~= vim.api.nvim_get_current_buf() then return end
-      await(function(resolve) update_state_for_buf(event.buf, resolve) end)
+      await(update_state_for_buf(event.buf))
       update_signs()
     end),
   })
@@ -320,7 +378,7 @@ M.setup_autocommands = function()
       end
 
       for _, bufnr in ipairs(bufs) do
-        await(function(resolve) update_state_for_buf(bufnr, resolve) end)
+        await(update_state_for_buf(bufnr))
       end
       update_signs()
     end),

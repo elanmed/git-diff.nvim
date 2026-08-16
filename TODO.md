@@ -4,8 +4,8 @@ asdf
 
 ## Notes:
 
-- Currently only shows diffs for the working tree vs staged
-- TODO: Do I want to show other kinds of diffs in the current file?
+- Highlights: do I want to show other kinds of diffs via highlight in the current file?
+  - Yes, but only make sense to be able to reset diffs if the base file is the working tree
 
 ## Diffview
 
