@@ -1,5 +1,7 @@
 # `git-diff.nvim`
 
+### WIP
+
 A minimal plugin to view, navigate, and reset git hunks
 
 ## Features
