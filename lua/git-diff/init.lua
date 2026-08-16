@@ -135,6 +135,7 @@ M.unpack_hunk = function(hunk)
 end
 
 --- @alias FileLocation "worktree" | "index" | "head" | "upstream"
+--- @alias DiffType "worktree-index" | "worktree-head" | "worktree-upstream" | "index-head" | "index-upstream" | "head-upstream"
 
 --- @type fun(cmd: string[], opts: vim.SystemOpts?): Promise<string?>
 local vim_system_stdout = async(
@@ -184,6 +185,11 @@ local resolve_file_contents = async(
     resolve(file_contents:gsub("\n$", "") .. "\n")
   end
 )
+
+
+--- @param diff_type DiffType
+local resolve_diff_cmd = function(diff_type)
+end
 
 --- @class GenerateDiffParams
 --- @field old_file_location FileLocation
@@ -372,7 +378,7 @@ local function reset_hunk(opts)
   end
 end
 
-M.setup_autocommands = function()
+local setup_autocommands = function()
   local timer = nil
   vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", }, {
     group = vim.api.nvim_create_augroup("GitDiffTextEvents", { clear = true, }),
@@ -422,7 +428,8 @@ M.setup_autocommands = function()
   })
 end
 
-M.setup_file_watcher = unwaited_async(function()
+--- @type fun():nil
+local setup_file_watcher = unwaited_async(function()
   local git_dir = await(vim_system_stdout { "git", "rev-parse", "--absolute-git-dir", })
   if git_dir == nil then return end
   git_dir = vim.trim(git_dir)
@@ -441,7 +448,7 @@ M.setup_file_watcher = unwaited_async(function()
   end)
 end)
 
-M.setup_keymaps = function()
+local setup_keymaps = function()
   vim.keymap.set("n", "<Plug>GitDiffNextHunk", function() navigate_hunk "next" end,
     { desc = "Navigate to the next hunk", })
   vim.keymap.set("n", "<Plug>GitDiffPrevHunk", function() navigate_hunk "prev" end,
@@ -489,10 +496,59 @@ M.setup_keymaps = function()
   end, { desc = "Reset the entire file", })
 end
 
+local open_diff_view = unwaited_async(
+--- @param opts GenerateDiffParams
+  function(opts)
+    vim.cmd.tabnew()
+
+    local new_winnr = vim.api.nvim_get_current_win()
+
+    --- @type number
+    local new_bufnr = nil
+
+    if opts.file_bufnr == nil then
+      local new_str = await(resolve_file_contents {
+        file_location = opts.new_file_location,
+        filename = opts.filename,
+        branch = opts.branch,
+        file_bufnr = opts.file_bufnr,
+      })
+      new_str = if_nil(new_str, "Could not open " .. opts.filename .. " from " .. opts.new_file_location)
+      local new_lines = vim.split(new_str, "\n", { trimempty = true, })
+      new_bufnr = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_buf_set_lines(new_bufnr, 0, -1, false, new_lines)
+    else
+      --- @type number
+      new_bufnr = opts.file_bufnr
+      vim.api.nvim_win_set_buf(new_winnr, new_bufnr)
+    end
+
+    local old_str = await(resolve_file_contents {
+      file_location = opts.old_file_location,
+      filename = opts.filename,
+      branch = opts.branch,
+      file_bufnr = opts.file_bufnr,
+    })
+    old_str = if_nil(old_str, "Could not open " .. opts.filename .. " from " .. opts.old_file_location)
+    local old_lines = vim.split(old_str, "\n", { trimempty = true, })
+
+    local old_bufnr = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(old_bufnr, 0, -1, false, old_lines)
+
+    local old_winnr = vim.api.nvim_open_win(old_bufnr, true, {
+      split = "left",
+      win = new_winnr,
+    })
+
+    local list_bufnr = vim.api.nvim_create_buf(false, true)
+    local file_list = await(vim_system_stdout {})
+  end
+)
+
 M.setup = function()
-  M.setup_autocommands()
-  M.setup_file_watcher()
-  M.setup_keymaps()
+  setup_autocommands()
+  setup_file_watcher()
+  setup_keymaps()
 end
 
 return M
