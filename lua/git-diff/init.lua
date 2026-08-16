@@ -26,7 +26,7 @@ end
 --- @alias Promise<T> fun(resolve: Resolve<T>): nil
 
 --- @param fn fun(resolve: Resolve<any>, ...: any): nil
-local top_async = function(fn)
+local unwaited_async = function(fn)
   return function(...)
     local promise = async(fn)(...)
     promise(function() end)
@@ -356,7 +356,7 @@ M.setup_autocommands = function()
     callback = function(event)
       if timer then vim.fn.timer_stop(timer) end
 
-      timer = vim.fn.timer_start(300, top_async(function()
+      timer = vim.fn.timer_start(300, unwaited_async(function()
         if event.buf ~= vim.api.nvim_get_current_buf() then return end
         await(update_state_for_buf(event.buf))
         update_signs()
@@ -366,7 +366,7 @@ M.setup_autocommands = function()
 
   vim.api.nvim_create_autocmd({ "BufWinEnter", "BufEnter", "BufWritePost", }, {
     group = vim.api.nvim_create_augroup("GitDiffBufEvents", { clear = true, }),
-    callback = top_async(function(_, event)
+    callback = unwaited_async(function(_, event)
       if event.buf ~= vim.api.nvim_get_current_buf() then return end
       await(update_state_for_buf(event.buf))
       update_signs()
@@ -376,7 +376,7 @@ M.setup_autocommands = function()
   vim.api.nvim_create_autocmd("User", {
     group = vim.api.nvim_create_augroup("GitDiffIndexEvents", { clear = true, }),
     pattern = { "GitIndexChanged", },
-    callback = top_async(function()
+    callback = unwaited_async(function()
       local bufs = {}
       for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
         if vim.bo[bufnr].buftype == "" and vim.api.nvim_buf_is_loaded(bufnr) then
