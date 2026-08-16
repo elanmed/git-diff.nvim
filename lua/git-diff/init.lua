@@ -225,27 +225,27 @@ local buffer_state = {}
 local ns_id = vim.api.nvim_create_namespace "GitDiff"
 
 --- @type fun(bufnr: number): Promise
-local update_state_for_buf =
+local update_state_for_buf = async(
 --- @param bufnr number
-    async(function(resolve, bufnr)
-      if not vim.api.nvim_buf_is_valid(bufnr) then return resolve() end
-      local bufname = vim.fs.relpath(vim.fn.getcwd(), vim.api.nvim_buf_get_name(bufnr))
-      if bufname == nil then return resolve() end
+  function(resolve, bufnr)
+    if not vim.api.nvim_buf_is_valid(bufnr) then return resolve() end
+    local bufname = vim.fs.relpath(vim.fn.getcwd(), vim.api.nvim_buf_get_name(bufnr))
+    if bufname == nil then return resolve() end
 
-      local indices = await(generate_diff { filename = bufname, old_file_location = "index", new_file_location = "worktree", file_bufnr = bufnr, })
-      if indices == nil then return resolve() end
+    local indices = await(generate_diff { filename = bufname, old_file_location = "index", new_file_location = "worktree", file_bufnr = bufnr, })
+    if indices == nil then return resolve() end
 
-      local index_str = await(resolve_file_contents { file_location = "index", filename = bufname, })
-      if index_str == nil then return resolve() end
-      local index_lines = vim.split(index_str, "\n", { trimempty = true, })
+    local index_str = await(resolve_file_contents { file_location = "index", filename = bufname, })
+    if index_str == nil then return resolve() end
+    local index_lines = vim.split(index_str, "\n", { trimempty = true, })
 
-      buffer_state[bufnr] = {
-        indices = indices,
-        index_lines = index_lines,
-      }
-      resolve()
-    end
-    )
+    buffer_state[bufnr] = {
+      indices = indices,
+      index_lines = index_lines,
+    }
+    resolve()
+  end
+)
 
 local update_signs = vim.schedule_wrap(function()
   local curr_bufnr = vim.api.nvim_get_current_buf()
@@ -422,25 +422,24 @@ M.setup_autocommands = function()
   })
 end
 
-M.setup_file_watcher = function()
-  vim.system({ "git", "rev-parse", "--absolute-git-dir", }, {}, function(result)
-    if result.code ~= 0 then return end
-    local git_dir = vim.trim(result.stdout)
+M.setup_file_watcher = unwaited_async(function()
+  local git_dir = await(vim_system_stdout { "git", "rev-parse", "--absolute-git-dir", })
+  if git_dir == nil then return end
+  git_dir = vim.trim(git_dir)
 
-    local index_watch = vim.uv.new_fs_event()
-    if index_watch == nil then return end
+  local index_watch = vim.uv.new_fs_event()
+  if index_watch == nil then return end
 
-    index_watch:start(git_dir, {}, function(_, filename)
-      vim.schedule(function()
-        if filename == "index" then
-          vim.api.nvim_exec_autocmds("User", { pattern = "GitIndexChanged", })
-        elseif filename == "HEAD" then
-          vim.api.nvim_exec_autocmds("User", { pattern = "GitHeadChanged", })
-        end
-      end)
+  index_watch:start(git_dir, {}, function(_, filename)
+    vim.schedule(function()
+      if filename == "index" then
+        vim.api.nvim_exec_autocmds("User", { pattern = "GitIndexChanged", })
+      elseif filename == "HEAD" then
+        vim.api.nvim_exec_autocmds("User", { pattern = "GitHeadChanged", })
+      end
     end)
   end)
-end
+end)
 
 M.setup_keymaps = function()
   vim.keymap.set("n", "<Plug>GitDiffNextHunk", function() navigate_hunk "next" end,
