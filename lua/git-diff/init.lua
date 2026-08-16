@@ -17,13 +17,21 @@ local async = function(fn)
     local args = { ..., }
     return function(resolve)
       local thread = coroutine.create(fn)
-      safe_resume(thread, resolve, table.unpack(args))
+      safe_resume(thread, resolve, unpack(args))
     end
   end
 end
 
 --- @alias Resolve<T> fun(value?: T): nil
 --- @alias Promise<T> fun(resolve: Resolve<T>): nil
+
+--- @param fn fun(resolve: Resolve<any>, ...: any): nil
+local top_async = function(fn)
+  return function(...)
+    local promise = async(fn)(...)
+    promise(function() end)
+  end
+end
 
 --- @generic T
 --- @param promise Promise<T>
@@ -175,9 +183,9 @@ local resolve_file_contents = async(
 local generate_diff = async(
 --- @param opts GenerateDiffParams
   function(resolve, opts)
-    local old_str = resolve_file_contents { file_location = opts.old_file_location, filename = opts.filename, branch = opts.branch, }
+    local old_str = await(resolve_file_contents { file_location = opts.old_file_location, filename = opts.filename, branch = opts.branch, })
     if old_str == nil then return resolve(nil) end
-    local new_str = resolve_file_contents { file_location = opts.new_file_location, filename = opts.filename, branch = opts.branch, }
+    local new_str = await(resolve_file_contents { file_location = opts.new_file_location, filename = opts.filename, branch = opts.branch, })
     if new_str == nil then return resolve(nil) end
 
     resolve(vim.text.diff(old_str, new_str, { result_type = "indices", }))
@@ -202,11 +210,10 @@ local update_state_for_buf =
       if bufname == nil then return resolve() end
 
       local indices = await(generate_diff { filename = bufname, old_file_location = "index", new_file_location = "worktree", })
-      if indices == nil then return nil end
+      if indices == nil then return resolve() end
 
       local index_str = await(resolve_file_contents { file_location = "index", filename = bufname, })
-      vim.print { index_str = index_str, }
-      if index_str == nil then return nil end
+      if index_str == nil then return resolve() end
       local index_lines = vim.split(index_str, "\n", { trimempty = true, })
 
       buffer_state[bufnr] = {
@@ -349,7 +356,7 @@ M.setup_autocommands = function()
     callback = function(event)
       if timer then vim.fn.timer_stop(timer) end
 
-      timer = vim.fn.timer_start(300, async(function()
+      timer = vim.fn.timer_start(300, top_async(function()
         if event.buf ~= vim.api.nvim_get_current_buf() then return end
         await(update_state_for_buf(event.buf))
         update_signs()
@@ -359,7 +366,7 @@ M.setup_autocommands = function()
 
   vim.api.nvim_create_autocmd({ "BufWinEnter", "BufEnter", "BufWritePost", }, {
     group = vim.api.nvim_create_augroup("GitDiffBufEvents", { clear = true, }),
-    callback = async(function(_, event)
+    callback = top_async(function(_, event)
       if event.buf ~= vim.api.nvim_get_current_buf() then return end
       await(update_state_for_buf(event.buf))
       update_signs()
@@ -369,7 +376,7 @@ M.setup_autocommands = function()
   vim.api.nvim_create_autocmd("User", {
     group = vim.api.nvim_create_augroup("GitDiffIndexEvents", { clear = true, }),
     pattern = { "GitIndexChanged", },
-    callback = async(function()
+    callback = top_async(function()
       local bufs = {}
       for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
         if vim.bo[bufnr].buftype == "" and vim.api.nvim_buf_is_loaded(bufnr) then
