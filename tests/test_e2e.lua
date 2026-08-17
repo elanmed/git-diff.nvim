@@ -95,6 +95,22 @@ local expect_sign = MiniTest.new_expectation(
   end
 )
 
+local expect_lines = MiniTest.new_expectation(
+  "buffer lines",
+  function(expected_lines)
+    return vim.deep_equal(child.api.nvim_buf_get_lines(0, 0, -1, false), expected_lines)
+  end,
+  function(expected_lines)
+    local actual_lines = child.api.nvim_buf_get_lines(0, 0, -1, false)
+    return string.format(
+      "Expected lines:\n%s\nActual lines:\n%s",
+      vim.inspect(expected_lines),
+      vim.inspect(actual_lines)
+    )
+  end
+)
+
+
 local function set_worktree_buffer(rel_path, lines)
   child.bo.buftype = ""
   child.bo.readonly = false
@@ -222,15 +238,45 @@ end
 T["reset hunk"] = new_set()
 
 T["reset hunk"]["resets a single-line hunk"] = function()
-  -- TODO: modify a single line and reset it.
+  mock_read_index_file "line1\nline2\nline3\nline4\nline5\n"
+  set_worktree_buffer("test.txt", { "line1", "line2 changed", "line3", "line4", "line5", })
+  trigger_diff_update()
+
+  local bufnr = child.api.nvim_get_current_buf()
+  expect_hunks(bufnr)
+
+  child.api.nvim_win_set_cursor(0, { 2, 0, })
+  child.type_keys "<Plug>GitDiffResetHunk"
+
+  expect_lines { "line1", "line2", "line3", "line4", "line5", }
 end
 
 T["reset hunk"]["resets a multi-line hunk"] = function()
-  -- TODO: modify multiple lines and reset them.
+  mock_read_index_file "line1\nline2\nline3\nline4\nline5\n"
+  set_worktree_buffer("test.txt", { "line1", "line2 changed", "line3 changed", "line4", "line5", })
+  trigger_diff_update()
+
+  local bufnr = child.api.nvim_get_current_buf()
+  expect_hunks(bufnr)
+
+  child.api.nvim_win_set_cursor(0, { 2, 0, })
+  child.type_keys "<Plug>GitDiffResetHunk"
+
+  expect_lines { "line1", "line2", "line3", "line4", "line5", }
 end
 
 T["reset hunk"]["resets a deleted hunk"] = function()
-  -- TODO: delete a line and reset it.
+  mock_read_index_file "line1\nline2\nline3\nline4\nline5\n"
+  set_worktree_buffer("test.txt", { "line1", "line3", "line4", "line5", })
+  trigger_diff_update()
+
+  local bufnr = child.api.nvim_get_current_buf()
+  expect_hunks(bufnr)
+
+  child.api.nvim_win_set_cursor(0, { 1, 0, })
+  child.type_keys "<Plug>GitDiffResetHunk"
+
+  expect_lines { "line1", "line2", "line3", "line4", "line5", }
 end
 
 T["reset hunk"]["resets a visually selected range"] = function()
