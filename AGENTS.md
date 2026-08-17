@@ -17,6 +17,10 @@ A minimal Neovim plugin to view, navigate, and reset git hunks.
   - To look up a Neovim API: `nvim --headless -c "help vim.text.diff" -c ".,.+100w! /tmp/help.txt" -c "qa" 2>&1`
   - Adjust `100` as needed
 
+## Style preferences
+
+- Use Lua long strings (`[[...]]`) for multi-line string literals instead of escaped `\n`.
+
 ### Async pattern
 
 The plugin implements a lightweight coroutine-based async system to avoid blocking the UI during git operations:
