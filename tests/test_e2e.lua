@@ -27,6 +27,31 @@ local expect_hunks = MiniTest.new_expectation(
   end
 )
 
+local expect_cursor = MiniTest.new_expectation(
+  "cursor at line",
+  function(line, col)
+    local cursor = child.api.nvim_win_get_cursor(0)
+    if col == nil then
+      return cursor[1] == line
+    end
+    return cursor[1] == line and cursor[2] == col
+  end,
+  function(line, col)
+    local cursor = child.api.nvim_win_get_cursor(0)
+    if col == nil then
+      return string.format("Expected cursor at line %d, actual line %d", line, cursor[1])
+    end
+    return string.format(
+      "Expected cursor at line %d col %d, actual line %d col %d",
+      line,
+      col,
+      cursor[1],
+      cursor[2]
+    )
+  end
+)
+
+
 local function mock_read_index_file(content)
   child.lua(string.format([[
     M.read_index_file = function()
@@ -82,11 +107,11 @@ T["hunk navigation"]["jumps to next hunk"] = function()
   child.api.nvim_win_set_cursor(0, { 1, 0, })
   child.type_keys "<Plug>GitDiffNextHunk"
 
-  eq(child.api.nvim_win_get_cursor(0)[1], 2)
+  expect_cursor(2)
 end
 
 T["hunk navigation"]["jumps to previous hunk"] = function()
-  mock_read_index_file("line1\nline2\nline3\nline4\nline5\n")
+  mock_read_index_file "line1\nline2\nline3\nline4\nline5\n"
   set_worktree_buffer("test.txt", { "line1", "line2 changed", "line3", "line4 changed", "line5", })
   trigger_diff_update()
 
@@ -96,11 +121,11 @@ T["hunk navigation"]["jumps to previous hunk"] = function()
   child.api.nvim_win_set_cursor(0, { 4, 0, })
   child.type_keys "<Plug>GitDiffPrevHunk"
 
-  eq(child.api.nvim_win_get_cursor(0)[1], 2)
+  expect_cursor(2)
 end
 
 T["hunk navigation"]["wraps to first hunk after last"] = function()
-  mock_read_index_file("line1\nline2\nline3\nline4\nline5\n")
+  mock_read_index_file "line1\nline2\nline3\nline4\nline5\n"
   set_worktree_buffer("test.txt", { "line1", "line2 changed", "line3", "line4 changed", "line5", })
   trigger_diff_update()
 
@@ -110,11 +135,11 @@ T["hunk navigation"]["wraps to first hunk after last"] = function()
   child.api.nvim_win_set_cursor(0, { 5, 0, })
   child.type_keys "<Plug>GitDiffNextHunk"
 
-  eq(child.api.nvim_win_get_cursor(0)[1], 2)
+  expect_cursor(2)
 end
 
 T["hunk navigation"]["wraps to last hunk before first"] = function()
-  mock_read_index_file("line1\nline2\nline3\nline4\nline5\n")
+  mock_read_index_file "line1\nline2\nline3\nline4\nline5\n"
   set_worktree_buffer("test.txt", { "line1", "line2 changed", "line3", "line4 changed", "line5", })
   trigger_diff_update()
 
@@ -124,7 +149,7 @@ T["hunk navigation"]["wraps to last hunk before first"] = function()
   child.api.nvim_win_set_cursor(0, { 1, 0, })
   child.type_keys "<Plug>GitDiffPrevHunk"
 
-  eq(child.api.nvim_win_get_cursor(0)[1], 4)
+  expect_cursor(4)
 end
 
 T["hunk signs"] = new_set()
