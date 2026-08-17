@@ -3,6 +3,51 @@ local eq = MiniTest.expect.equality
 
 local child = MiniTest.new_child_neovim()
 
+local expect_hunks = MiniTest.new_expectation(
+  "buffer has diff hunks",
+  function(bufnr, timeout)
+    timeout = timeout or 1000
+    local ns_id = child.api.nvim_create_namespace "GitDiff"
+    return child.lua_get(string.format([[
+      vim.wait(%d, function()
+        return #vim.api.nvim_buf_get_extmarks(%d, %d, 0, -1, {}) > 0
+      end)
+    ]], timeout, bufnr, ns_id))
+  end,
+  function(bufnr, timeout)
+    timeout = timeout or 1000
+    local ns_id = child.api.nvim_create_namespace "GitDiff"
+    local count = #child.api.nvim_buf_get_extmarks(bufnr, ns_id, 0, -1, {})
+    return string.format(
+      "Expected buffer %s to have GitDiff extmarks after %d ms, found %d",
+      tostring(bufnr),
+      timeout,
+      count
+    )
+  end
+)
+
+local function mock_read_index_file(content)
+  child.lua(string.format([[
+    M.read_index_file = function()
+      return function(resolve) resolve(%q) end
+    end
+  ]], content))
+end
+
+local function set_worktree_buffer(rel_path, lines)
+  child.bo.buftype = ""
+  child.bo.readonly = false
+  child.bo.modifiable = true
+  child.api.nvim_buf_set_name(0, child.fn.getcwd() .. "/" .. rel_path)
+  child.api.nvim_buf_set_lines(0, 0, -1, true, lines)
+end
+
+local function trigger_diff_update()
+  child.cmd "doautocmd BufEnter"
+end
+
+
 local T = new_set {
   hooks = {
     pre_case = function()
@@ -27,7 +72,17 @@ end
 T["hunk navigation"] = new_set()
 
 T["hunk navigation"]["jumps to next hunk"] = function()
-  -- TODO: stage a known file, modify it, then jump to next hunk.
+  mock_read_index_file "line1\nline2\nline3\n"
+  set_worktree_buffer("test.txt", { "line1", "line2", "line3 changed", "line4", })
+  trigger_diff_update()
+
+  local bufnr = child.api.nvim_get_current_buf()
+  expect_hunks(bufnr)
+
+  child.api.nvim_win_set_cursor(0, { 1, 0, })
+  child.type_keys "<Plug>GitDiffNextHunk"
+
+  eq(child.api.nvim_win_get_cursor(0)[1], 3)
 end
 
 T["hunk navigation"]["jumps to previous hunk"] = function()
@@ -108,12 +163,12 @@ end
 
 T["diff view"]["diff types"] = new_set {
   parametrize = {
-    { "worktree-index" },
-    { "worktree-head" },
-    { "worktree-upstream" },
-    { "index-head" },
-    { "index-upstream" },
-    { "head-upstream" },
+    { "worktree-index", },
+    { "worktree-head", },
+    { "worktree-upstream", },
+    { "index-head", },
+    { "index-upstream", },
+    { "head-upstream", },
   },
 }
 
