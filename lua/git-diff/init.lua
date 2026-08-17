@@ -603,10 +603,12 @@ local update_diff_view = unwaited_async(
 --- @field upstream_branch? string
 
 --- @type fun(opts: OpenDiffViewParams): nil
-local open_diff_view = unwaited_async(
+M.open_diff_view = unwaited_async(
 --- @param opts OpenDiffViewParams
   function(_, opts)
     vim.cmd.tabnew()
+
+    vim.t.git_diff_view_open = true
 
     state.upstream_branch = opts.upstream_branch
     state.new_bufnr = vim.api.nvim_create_buf(false, true)
@@ -672,8 +674,29 @@ local open_diff_view = unwaited_async(
         vim.cmd [[execute "normal! \<C-u>"]]
       end)
     end, { desc = "Scroll up in the diff view", })
+
+    vim.api.nvim_exec_autocmds("User", {
+      pattern = "GitDiffViewOpen",
+      data = {
+        old_winnr = state.old_winnr,
+        new_winnr = state.new_winnr,
+        file_list_winnr = state.file_list_winnr,
+        old_bufnr = state.old_bufnr,
+        new_bufnr = state.new_bufnr,
+        file_list_bufnr = state.file_list_bufnr,
+      },
+    })
   end
 )
+
+--- @param opts OpenDiffViewParams
+M.toggle_diff_view = function(opts)
+  if vim.t.git_diff_view_open == true then
+    vim.api.nvim_win_close(state.file_list_winnr, false)
+    return
+  end
+  M.open_diff_view(opts)
+end
 
 local demo = function()
   local bufnr = vim.api.nvim_get_current_buf()
@@ -683,7 +706,7 @@ local demo = function()
   local curr_bufname = vim.fs.relpath(cwd, vim.api.nvim_buf_get_name(bufnr))
   assert(curr_bufname ~= nil)
 
-  open_diff_view { upstream_branch = "master", diff_type = "index-upstream", }
+  M.toggle_diff_view { upstream_branch = "master", diff_type = "index-upstream", }
 end
 vim.keymap.set("n", "<leader>d", demo)
 
