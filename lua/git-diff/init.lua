@@ -708,18 +708,6 @@ M.toggle_diff_view = function(opts)
   M.open_diff_view(opts)
 end
 
-local demo = function()
-  local bufnr = vim.api.nvim_get_current_buf()
-
-  local cwd = vim.uv.cwd()
-  assert(cwd ~= nil)
-  local curr_bufname = vim.fs.relpath(cwd, vim.api.nvim_buf_get_name(bufnr))
-  assert(curr_bufname ~= nil)
-
-  M.toggle_diff_view { upstream_branch = "master", diff_type = "worktree-index", }
-end
-vim.keymap.set("n", "<leader>d", demo)
-
 M.setup = function()
   setup_global_autocmds()
   setup_file_watcher()
