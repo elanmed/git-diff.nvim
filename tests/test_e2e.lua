@@ -60,6 +60,41 @@ local function mock_read_index_file(content)
   ]], content))
 end
 
+local expect_sign = MiniTest.new_expectation(
+  "line has expected sign",
+  function(bufnr, line_1i, hl_group)
+    local ns_id = child.api.nvim_create_namespace "GitDiff"
+    local marks = child.api.nvim_buf_get_extmarks(
+      bufnr,
+      ns_id,
+      { line_1i - 1, 0 },
+      { line_1i - 1, -1 },
+      { details = true }
+    )
+    if #marks == 0 then return false end
+    return marks[1][4].number_hl_group == hl_group
+  end,
+  function(bufnr, line_1i, hl_group)
+    local ns_id = child.api.nvim_create_namespace "GitDiff"
+    local marks = child.api.nvim_buf_get_extmarks(
+      bufnr,
+      ns_id,
+      { line_1i - 1, 0 },
+      { line_1i - 1, -1 },
+      { details = true }
+    )
+    if #marks == 0 then
+      return string.format("Expected %s sign on line %d, found no extmarks", hl_group, line_1i)
+    end
+    return string.format(
+      "Expected %s sign on line %d, found %s",
+      hl_group,
+      line_1i,
+      marks[1][4].number_hl_group or "none"
+    )
+  end
+)
+
 local function set_worktree_buffer(rel_path, lines)
   child.bo.buftype = ""
   child.bo.readonly = false
@@ -155,15 +190,33 @@ end
 T["hunk signs"] = new_set()
 
 T["hunk signs"]["adds extmarks for added lines"] = function()
-  -- TODO: verify DiffSignAdd extmarks on added lines.
+  mock_read_index_file("line1\nline2\nline3\n")
+  set_worktree_buffer("test.txt", { "line1", "line2", "line3", "line4", })
+  trigger_diff_update()
+
+  local bufnr = child.api.nvim_get_current_buf()
+  expect_hunks(bufnr)
+  expect_sign(bufnr, 4, "DiffSignAdd")
 end
 
 T["hunk signs"]["adds extmarks for deleted lines"] = function()
-  -- TODO: verify DiffSignDelete extmarks on deleted lines.
+  mock_read_index_file("line1\nline2\nline3\nline4\n")
+  set_worktree_buffer("test.txt", { "line1", "line2", "line4", })
+  trigger_diff_update()
+
+  local bufnr = child.api.nvim_get_current_buf()
+  expect_hunks(bufnr)
+  expect_sign(bufnr, 2, "DiffSignDelete")
 end
 
 T["hunk signs"]["adds extmarks for changed lines"] = function()
-  -- TODO: verify DiffSignChange extmarks on modified lines.
+  mock_read_index_file("line1\nline2\nline3\n")
+  set_worktree_buffer("test.txt", { "line1", "line2 changed", "line3", })
+  trigger_diff_update()
+
+  local bufnr = child.api.nvim_get_current_buf()
+  expect_hunks(bufnr)
+  expect_sign(bufnr, 2, "DiffSignChange")
 end
 
 T["reset hunk"] = new_set()
