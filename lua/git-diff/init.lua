@@ -716,7 +716,7 @@ local demo = function()
   local curr_bufname = vim.fs.relpath(cwd, vim.api.nvim_buf_get_name(bufnr))
   assert(curr_bufname ~= nil)
 
-  M.toggle_diff_view { upstream_branch = "master", diff_type = "index-upstream", }
+  M.toggle_diff_view { upstream_branch = "master", diff_type = "worktree-index", }
 end
 vim.keymap.set("n", "<leader>d", demo)
 
