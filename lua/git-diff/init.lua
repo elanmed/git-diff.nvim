@@ -387,11 +387,11 @@ local function navigate_hunk(direction)
 
   if next_hunk_row_1i == nil then
     if direction == "next" then
-      local hunk = M.unpack_hunk(indices[1])
+      local hunk = M.unpack_hunk(state.indices[1])
       vim.api.nvim_win_set_cursor(0, { hunk.start_new_1i, 0, })
       return vim.notify("Wrapping to the first hunk", vim.log.levels.INFO)
     else
-      local hunk = M.unpack_hunk(indices[#indices])
+      local hunk = M.unpack_hunk(state.indices[#state.indices])
       vim.api.nvim_win_set_cursor(0, { hunk.start_new_1i, 0, })
       return vim.notify("Wrapping to the last hunk", vim.log.levels.INFO)
     end
