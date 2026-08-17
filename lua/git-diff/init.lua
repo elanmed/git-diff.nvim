@@ -316,14 +316,14 @@ local update_state_for_buf = async(
 
 local update_signs = vim.schedule_wrap(function()
   local curr_bufnr = vim.api.nvim_get_current_buf()
-  local state = buffer_state[curr_bufnr]
+  local buf_state = buffer_state[curr_bufnr]
 
-  if state == nil then
+  if buf_state == nil then
     return
   end
 
   local rows_to_hl = {}
-  for _, raw_hunk in ipairs(state.indices) do
+  for _, raw_hunk in ipairs(buf_state.indices) do
     local hunk = M.unpack_hunk(raw_hunk)
 
     local hunk_hl_group = (function()
@@ -352,15 +352,15 @@ end)
 --- @param direction 'next' | 'prev'
 local function navigate_hunk(direction)
   local curr_bufnr = vim.api.nvim_get_current_buf()
-  local state = buffer_state[curr_bufnr]
+  local buf_state = buffer_state[curr_bufnr]
 
-  if state == nil then
+  if buf_state == nil then
     return vim.notify("Missing diff state for this buffer", vim.log.levels.ERROR)
   end
 
   local indices = (function()
-    if direction == "next" then return state.indices end
-    return tbl_reverse(state.indices)
+    if direction == "next" then return buf_state.indices end
+    return tbl_reverse(buf_state.indices)
   end)()
 
   if #indices == 0 then
@@ -387,11 +387,11 @@ local function navigate_hunk(direction)
 
   if next_hunk_row_1i == nil then
     if direction == "next" then
-      local hunk = M.unpack_hunk(state.indices[1])
+      local hunk = M.unpack_hunk(buf_state.indices[1])
       vim.api.nvim_win_set_cursor(0, { hunk.start_new_1i, 0, })
       return vim.notify("Wrapping to the first hunk", vim.log.levels.INFO)
     else
-      local hunk = M.unpack_hunk(state.indices[#state.indices])
+      local hunk = M.unpack_hunk(buf_state.indices[#buf_state.indices])
       vim.api.nvim_win_set_cursor(0, { hunk.start_new_1i, 0, })
       return vim.notify("Wrapping to the last hunk", vim.log.levels.INFO)
     end
@@ -517,19 +517,19 @@ local setup_global_keymaps = function()
 
   vim.keymap.set("n", "<Plug>GitDiffResetHunk", function()
     local curr_bufnr = vim.api.nvim_get_current_buf()
-    local state = buffer_state[curr_bufnr]
-    if state == nil then
+    local buf_state = buffer_state[curr_bufnr]
+    if buf_state == nil then
       return vim.notify("Missing diff state for this buffer", vim.log.levels.ERROR)
     end
 
     local row_1i = vim.api.nvim_win_get_cursor(0)[1]
-    reset_hunk { state = state, curr_bufnr = curr_bufnr, start_line_1i = row_1i, end_line_1i_incl = row_1i, }
+    reset_hunk { state = buf_state, curr_bufnr = curr_bufnr, start_line_1i = row_1i, end_line_1i_incl = row_1i, }
   end, { desc = "Reset the hunk on the current line", })
 
   vim.keymap.set("v", "<Plug>GitDiffResetHunk", function()
     local curr_bufnr = vim.api.nvim_get_current_buf()
-    local state = buffer_state[curr_bufnr]
-    if state == nil then
+    local buf_state = buffer_state[curr_bufnr]
+    if buf_state == nil then
       return vim.notify("Missing diff state for this buffer", vim.log.levels.ERROR)
     end
 
@@ -538,18 +538,18 @@ local setup_global_keymaps = function()
     local start_selection_1i = math.min(start_visual_1i, end_visual_1i)
     local end_selection_1i = math.max(start_visual_1i, end_visual_1i)
 
-    reset_hunk { state = state, curr_bufnr = curr_bufnr, start_line_1i = start_selection_1i, end_line_1i_incl = end_selection_1i, }
+    reset_hunk { state = buf_state, curr_bufnr = curr_bufnr, start_line_1i = start_selection_1i, end_line_1i_incl = end_selection_1i, }
   end, { desc = "Reset the visually selected hunk", })
 
   vim.keymap.set("n", "<Plug>GitDiffResetFile", function()
     local curr_bufnr = vim.api.nvim_get_current_buf()
-    local state = buffer_state[curr_bufnr]
-    if state == nil then
+    local buf_state = buffer_state[curr_bufnr]
+    if buf_state == nil then
       return vim.notify("Missing diff state for this buffer", vim.log.levels.ERROR)
     end
 
     reset_hunk {
-      state = state,
+      state = buf_state,
       curr_bufnr = curr_bufnr,
       start_line_1i = 1,
       end_line_1i_incl = vim.api.nvim_buf_line_count(curr_bufnr),
