@@ -543,7 +543,7 @@ local initial_state = {
   tabnr = nil,
 }
 
-local state = initial_state
+local state = vim.deepcopy(initial_state)
 
 --- @class ShouldUseRealFilenameBufnrOpts
 --- @field diff_type DiffType
@@ -669,7 +669,7 @@ M.open_diff_view = unwaited_async(
         if vim.api.nvim_win_is_valid(state.new_winnr) then vim.api.nvim_win_close(state.new_winnr, false) end
         if vim.api.nvim_win_is_valid(state.old_winnr) then vim.api.nvim_win_close(state.old_winnr, false) end
         if vim.api.nvim_win_is_valid(state.file_list_winnr) then vim.api.nvim_win_close(state.file_list_winnr, false) end
-        state = initial_state
+        state = vim.deepcopy(initial_state)
       end,
     })
 
