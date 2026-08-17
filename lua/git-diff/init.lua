@@ -154,7 +154,7 @@ local vim_system_stdout = async(
 
 --- @class ResolveFileContentsParams
 --- @field file_location FileLocation
---- @field filename string
+--- @field rel_filename string
 --- @field upstream_branch? string
 --- @field file_bufnr? number
 
@@ -166,19 +166,19 @@ local resolve_file_contents = async(
 
     if opts.file_location == "worktree" then
       if opts.file_bufnr == nil then
-        local file_lines = vim.fn.readfile(opts.filename)
+        local file_lines = vim.fn.readfile(opts.rel_filename)
         file_contents = table.concat(file_lines, "\n")
       else
         local buf_lines = vim.api.nvim_buf_get_lines(opts.file_bufnr, 0, -1, false)
         file_contents = table.concat(buf_lines, "\n")
       end
     elseif opts.file_location == "index" then
-      file_contents = await(vim_system_stdout { "git", "show", ":" .. opts.filename, })
+      file_contents = await(vim_system_stdout { "git", "show", ":" .. opts.rel_filename, })
     elseif opts.file_location == "head" then
-      file_contents = await(vim_system_stdout { "git", "show", "HEAD:" .. opts.filename, })
+      file_contents = await(vim_system_stdout { "git", "show", "HEAD:" .. opts.rel_filename, })
     elseif opts.file_location == "upstream" then
       local upstream_branch = if_nil(opts.upstream_branch, "master")
-      file_contents = await(vim_system_stdout { "git", "show", "origin/" .. upstream_branch .. ":" .. opts.filename, })
+      file_contents = await(vim_system_stdout { "git", "show", "origin/" .. upstream_branch .. ":" .. opts.rel_filename, })
     end
 
     if file_contents == nil then return resolve(nil) end
@@ -230,7 +230,7 @@ end
 --- @class GenerateDiffParams
 --- @field old_file_location FileLocation
 --- @field new_file_location FileLocation
---- @field filename string
+--- @field rel_filename string
 --- @field upstream_branch? string
 --- @field file_bufnr? number
 
@@ -240,14 +240,14 @@ local generate_diff = async(
   function(resolve, opts)
     local old_str = await(resolve_file_contents {
       file_location = opts.old_file_location,
-      filename = opts.filename,
+      rel_filename = opts.rel_filename,
       upstream_branch = opts.upstream_branch,
       file_bufnr = opts.file_bufnr,
     })
     if old_str == nil then return resolve(nil) end
     local new_str = await(resolve_file_contents {
       file_location = opts.new_file_location,
-      filename = opts.filename,
+      rel_filename = opts.rel_filename,
       upstream_branch = opts.upstream_branch,
       file_bufnr = opts.file_bufnr,
     })
@@ -274,10 +274,10 @@ local update_state_for_buf = async(
     local bufname = vim.fs.relpath(vim.fn.getcwd(), vim.api.nvim_buf_get_name(bufnr))
     if bufname == nil then return resolve() end
 
-    local indices = await(generate_diff { filename = bufname, old_file_location = "index", new_file_location = "worktree", file_bufnr = bufnr, })
+    local indices = await(generate_diff { rel_filename = bufname, old_file_location = "index", new_file_location = "worktree", file_bufnr = bufnr, })
     if indices == nil then return resolve() end
 
-    local index_str = await(resolve_file_contents { file_location = "index", filename = bufname, })
+    local index_str = await(resolve_file_contents { file_location = "index", rel_filename = bufname, })
     if index_str == nil then return resolve() end
     local index_lines = vim.split(index_str, "\n", { trimempty = true, })
 
@@ -546,7 +546,7 @@ local state = {
 --- @class UpdateDiffViewParams
 --- @field diff_type DiffType
 --- @field upstream_branch? string
---- @field filename string
+--- @field rel_filename string
 
 --- @type fun(opts: UpdateDiffViewParams): nil
 local update_diff_view = unwaited_async(
@@ -554,7 +554,7 @@ local update_diff_view = unwaited_async(
   function(_, opts)
     local new_file_location, old_file_location = get_file_locations_from_diff_type(opts.diff_type)
 
-    local filename_bufnr = vim.fn.bufnr(opts.filename)
+    local filename_bufnr = vim.fn.bufnr(opts.rel_filename)
     local use_real_filename_bufnr = filename_bufnr ~= -1
 
     if use_real_filename_bufnr then
@@ -563,20 +563,20 @@ local update_diff_view = unwaited_async(
     else
       local new_str = await(resolve_file_contents {
         file_location = new_file_location,
-        filename = opts.filename,
+        rel_filename = opts.rel_filename,
         upstream_branch = opts.upstream_branch,
       })
-      new_str = if_nil(new_str, "Could not open " .. opts.filename .. " from " .. new_file_location)
+      new_str = if_nil(new_str, "Could not open " .. opts.rel_filename .. " from " .. new_file_location)
       local new_lines = vim.split(new_str, "\n", { trimempty = true, })
       vim.api.nvim_buf_set_lines(state.new_bufnr, 0, -1, false, new_lines)
     end
 
     local old_str = await(resolve_file_contents {
       file_location = old_file_location,
-      filename = opts.filename,
+      rel_filename = opts.rel_filename,
       upstream_branch = opts.upstream_branch,
     })
-    old_str = if_nil(old_str, "Could not open " .. opts.filename .. " from " .. old_file_location)
+    old_str = if_nil(old_str, "Could not open " .. opts.rel_filename .. " from " .. old_file_location)
     local old_lines = vim.split(old_str, "\n", { trimempty = true, })
     vim.api.nvim_buf_set_lines(state.old_bufnr, 0, -1, false, old_lines)
 
@@ -596,22 +596,10 @@ local open_diff_view = unwaited_async(
   function(_, opts)
     vim.cmd.tabnew()
 
+    state.diff_type = opts.diff_type
+    state.upstream_branch = opts.upstream_branch
     state.new_bufnr = vim.api.nvim_create_buf(false, true)
     state.new_winnr = vim.api.nvim_get_current_win()
-
-    -- if opts.file_bufnr == nil then
-    --   local new_str = await(resolve_file_contents {
-    --     file_location = opts.new_file_location,
-    --     filename = opts.filename,
-    --     upstream_branch = opts.upstream_branch,
-    --     file_bufnr = opts.file_bufnr,
-    --   })
-    --   new_str = if_nil(new_str, "Could not open " .. opts.filename .. " from " .. opts.new_file_location)
-    --   local new_lines = vim.split(new_str, "\n", { trimempty = true, })
-    --   vim.api.nvim_buf_set_lines(state.new_bufnr, 0, -1, false, new_lines)
-    -- else
-    --   vim.api.nvim_win_set_buf(state.new_winnr, state.new_bufnr)
-    -- end
 
     state.old_bufnr = vim.api.nvim_create_buf(false, true)
     state.old_winnr = vim.api.nvim_open_win(state.old_bufnr, true, {
@@ -629,15 +617,9 @@ local open_diff_view = unwaited_async(
 
     state.file_list_bufnr = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_buf_set_lines(state.file_list_bufnr, 0, -1, false, file_list_lines)
-    state.file_list_winnr = vim.api.nvim_open_win(state.file_list_bufnr, true, {
-      relative = "editor",
-      anchor = "SW",
-      width = vim.o.columns,
-      height = 10,
-      row = vim.o.lines,
-      col = 0,
-      style = "minimal",
-    })
+    vim.cmd.botright "10split"
+    state.file_list_winnr = vim.api.nvim_get_current_win()
+    vim.api.nvim_win_set_buf(state.file_list_winnr, state.file_list_bufnr)
     vim.wo[state.file_list_winnr].winbar = "Files"
 
     vim.api.nvim_create_autocmd({ "CursorMoved", }, {
@@ -645,10 +627,7 @@ local open_diff_view = unwaited_async(
       buf = state.file_list_bufnr,
       callback = function()
         local rel_filename = vim.api.nvim_win_call(state.file_list_winnr, vim.api.nvim_get_current_line)
-        local abs_filename = vim.fs.abspath(rel_filename)
-
-        vim.print { filename = abs_filename, }
-        update_diff_view { diff_type = state.diff_type, filename = abs_filename, upstream_branch = state.upstream_branch, }
+        update_diff_view { diff_type = state.diff_type, rel_filename = rel_filename, upstream_branch = state.upstream_branch, }
       end,
     })
   end
