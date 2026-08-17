@@ -584,6 +584,8 @@ local update_diff_view = unwaited_async(
       local new_lines = vim.split(new_str, "\n", { trimempty = true, })
       vim.api.nvim_buf_set_lines(state.new_bufnr, 0, -1, false, new_lines)
     end
+    vim.wo[state.new_winnr].diff = true
+    vim.wo[state.new_winnr].scrollbind = true
 
     local old_str = await(resolve_file_contents {
       file_location = old_file_location,
@@ -622,6 +624,9 @@ local open_diff_view = unwaited_async(
 
     vim.wo[state.new_winnr].diff = true
     vim.wo[state.old_winnr].diff = true
+
+    vim.wo[state.new_winnr].scrollbind = true
+    vim.wo[state.old_winnr].scrollbind = true
 
     local diff_cmd = resolve_diff_cmd {
       diff_type = opts.diff_type,
