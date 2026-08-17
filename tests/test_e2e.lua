@@ -67,9 +67,9 @@ local expect_sign = MiniTest.new_expectation(
     local marks = child.api.nvim_buf_get_extmarks(
       bufnr,
       ns_id,
-      { line_1i - 1, 0 },
-      { line_1i - 1, -1 },
-      { details = true }
+      { line_1i - 1, 0, },
+      { line_1i - 1, -1, },
+      { details = true, }
     )
     if #marks == 0 then return false end
     return marks[1][4].number_hl_group == hl_group
@@ -79,9 +79,9 @@ local expect_sign = MiniTest.new_expectation(
     local marks = child.api.nvim_buf_get_extmarks(
       bufnr,
       ns_id,
-      { line_1i - 1, 0 },
-      { line_1i - 1, -1 },
-      { details = true }
+      { line_1i - 1, 0, },
+      { line_1i - 1, -1, },
+      { details = true, }
     )
     if #marks == 0 then
       return string.format("Expected %s sign on line %d, found no extmarks", hl_group, line_1i)
@@ -190,7 +190,7 @@ end
 T["hunk signs"] = new_set()
 
 T["hunk signs"]["adds extmarks for added lines"] = function()
-  mock_read_index_file("line1\nline2\nline3\n")
+  mock_read_index_file "line1\nline2\nline3\n"
   set_worktree_buffer("test.txt", { "line1", "line2", "line3", "line4", })
   trigger_diff_update()
 
@@ -200,7 +200,7 @@ T["hunk signs"]["adds extmarks for added lines"] = function()
 end
 
 T["hunk signs"]["adds extmarks for deleted lines"] = function()
-  mock_read_index_file("line1\nline2\nline3\nline4\n")
+  mock_read_index_file "line1\nline2\nline3\nline4\n"
   set_worktree_buffer("test.txt", { "line1", "line2", "line4", })
   trigger_diff_update()
 
@@ -210,7 +210,7 @@ T["hunk signs"]["adds extmarks for deleted lines"] = function()
 end
 
 T["hunk signs"]["adds extmarks for changed lines"] = function()
-  mock_read_index_file("line1\nline2\nline3\n")
+  mock_read_index_file "line1\nline2\nline3\n"
   set_worktree_buffer("test.txt", { "line1", "line2 changed", "line3", })
   trigger_diff_update()
 
