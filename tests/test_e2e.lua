@@ -148,7 +148,12 @@ end
 T["hunk navigation"] = new_set()
 
 T["hunk navigation"]["jumps to next hunk"] = function()
-  mock_read_index_file "line1\nline2\nline3\nline4\nline5\n"
+  mock_read_index_file [[line1
+line2
+line3
+line4
+line5
+]]
   set_worktree_buffer("test.txt", { "line1", "line2 changed", "line3", "line4 changed", "line5", })
   trigger_diff_update()
 
@@ -162,7 +167,12 @@ T["hunk navigation"]["jumps to next hunk"] = function()
 end
 
 T["hunk navigation"]["jumps to previous hunk"] = function()
-  mock_read_index_file "line1\nline2\nline3\nline4\nline5\n"
+  mock_read_index_file [[line1
+line2
+line3
+line4
+line5
+]]
   set_worktree_buffer("test.txt", { "line1", "line2 changed", "line3", "line4 changed", "line5", })
   trigger_diff_update()
 
@@ -176,7 +186,12 @@ T["hunk navigation"]["jumps to previous hunk"] = function()
 end
 
 T["hunk navigation"]["wraps to first hunk after last"] = function()
-  mock_read_index_file "line1\nline2\nline3\nline4\nline5\n"
+  mock_read_index_file [[line1
+line2
+line3
+line4
+line5
+]]
   set_worktree_buffer("test.txt", { "line1", "line2 changed", "line3", "line4 changed", "line5", })
   trigger_diff_update()
 
@@ -190,7 +205,12 @@ T["hunk navigation"]["wraps to first hunk after last"] = function()
 end
 
 T["hunk navigation"]["wraps to last hunk before first"] = function()
-  mock_read_index_file "line1\nline2\nline3\nline4\nline5\n"
+  mock_read_index_file [[line1
+line2
+line3
+line4
+line5
+]]
   set_worktree_buffer("test.txt", { "line1", "line2 changed", "line3", "line4 changed", "line5", })
   trigger_diff_update()
 
@@ -206,7 +226,10 @@ end
 T["hunk signs"] = new_set()
 
 T["hunk signs"]["adds extmarks for added lines"] = function()
-  mock_read_index_file "line1\nline2\nline3\n"
+  mock_read_index_file [[line1
+line2
+line3
+]]
   set_worktree_buffer("test.txt", { "line1", "line2", "line3", "line4", })
   trigger_diff_update()
 
@@ -216,7 +239,11 @@ T["hunk signs"]["adds extmarks for added lines"] = function()
 end
 
 T["hunk signs"]["adds extmarks for deleted lines"] = function()
-  mock_read_index_file "line1\nline2\nline3\nline4\n"
+  mock_read_index_file [[line1
+line2
+line3
+line4
+]]
   set_worktree_buffer("test.txt", { "line1", "line2", "line4", })
   trigger_diff_update()
 
@@ -226,7 +253,10 @@ T["hunk signs"]["adds extmarks for deleted lines"] = function()
 end
 
 T["hunk signs"]["adds extmarks for changed lines"] = function()
-  mock_read_index_file "line1\nline2\nline3\n"
+  mock_read_index_file [[line1
+line2
+line3
+]]
   set_worktree_buffer("test.txt", { "line1", "line2 changed", "line3", })
   trigger_diff_update()
 
@@ -238,7 +268,12 @@ end
 T["reset hunk"] = new_set()
 
 T["reset hunk"]["resets a single-line hunk"] = function()
-  mock_read_index_file "line1\nline2\nline3\nline4\nline5\n"
+  mock_read_index_file [[line1
+line2
+line3
+line4
+line5
+]]
   set_worktree_buffer("test.txt", { "line1", "line2 changed", "line3", "line4", "line5", })
   trigger_diff_update()
 
@@ -252,7 +287,12 @@ T["reset hunk"]["resets a single-line hunk"] = function()
 end
 
 T["reset hunk"]["resets a multi-line hunk"] = function()
-  mock_read_index_file "line1\nline2\nline3\nline4\nline5\n"
+  mock_read_index_file [[line1
+line2
+line3
+line4
+line5
+]]
   set_worktree_buffer("test.txt", { "line1", "line2 changed", "line3 changed", "line4", "line5", })
   trigger_diff_update()
 
@@ -266,7 +306,12 @@ T["reset hunk"]["resets a multi-line hunk"] = function()
 end
 
 T["reset hunk"]["resets a deleted hunk"] = function()
-  mock_read_index_file "line1\nline2\nline3\nline4\nline5\n"
+  mock_read_index_file [[line1
+line2
+line3
+line4
+line5
+]]
   set_worktree_buffer("test.txt", { "line1", "line3", "line4", "line5", })
   trigger_diff_update()
 
