@@ -533,14 +533,17 @@ local setup_global_keymaps = function()
 end
 
 
-local state = {
+local initial_state = {
   new_winnr = nil,
   new_bufnr = nil,
   old_winnr = nil,
   old_bufnr = nil,
   file_list_winnr = nil,
   file_list_bufnr = nil,
+  tabnr = nil,
 }
+
+local state = initial_state
 
 --- @class ShouldUseRealFilenameBufnrOpts
 --- @field diff_type DiffType
@@ -606,7 +609,13 @@ local update_diff_view = unwaited_async(
 M.open_diff_view = unwaited_async(
 --- @param opts OpenDiffViewParams
   function(_, opts)
+    if (state.tabnr ~= nil) then
+      vim.api.nvim_set_current_tabpage(state.tabnr)
+      return
+    end
+
     vim.cmd.tabnew()
+    state.tabnr = vim.api.nvim_get_current_tabpage()
 
     vim.t.git_diff_view_open = true
 
@@ -660,6 +669,7 @@ M.open_diff_view = unwaited_async(
         if vim.api.nvim_win_is_valid(state.new_winnr) then vim.api.nvim_win_close(state.new_winnr, false) end
         if vim.api.nvim_win_is_valid(state.old_winnr) then vim.api.nvim_win_close(state.old_winnr, false) end
         if vim.api.nvim_win_is_valid(state.file_list_winnr) then vim.api.nvim_win_close(state.file_list_winnr, false) end
+        state = initial_state
       end,
     })
 
