@@ -414,7 +414,7 @@ local function reset_hunk(opts)
   end
 end
 
-local setup_autocommands = function()
+local setup_global_autocmds = function()
   local timer = nil
   vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", }, {
     group = vim.api.nvim_create_augroup("GitDiffTextEvents", { clear = true, }),
@@ -484,7 +484,7 @@ local setup_file_watcher = unwaited_async(function()
   end)
 end)
 
-local setup_keymaps = function()
+local setup_global_keymaps = function()
   vim.keymap.set("n", "<Plug>GitDiffNextHunk", function() navigate_hunk "next" end,
     { desc = "Navigate to the next hunk", })
   vim.keymap.set("n", "<Plug>GitDiffPrevHunk", function() navigate_hunk "prev" end,
@@ -639,6 +639,7 @@ local open_diff_view = unwaited_async(
     vim.wo[state.file_list_winnr].diff = false
     vim.wo[state.file_list_winnr].winbar = "Files"
     vim.bo[state.file_list_bufnr].modifiable = false
+    vim.bo[state.file_list_bufnr].filetype = "git-diff-view-file-list"
 
     vim.api.nvim_create_autocmd({ "CursorMoved", }, {
       group = vim.api.nvim_create_augroup("GitDiffViewFileListCursorMove", { clear = true, }),
@@ -648,6 +649,28 @@ local open_diff_view = unwaited_async(
         update_diff_view { diff_type = opts.diff_type, rel_filename = rel_filename, upstream_branch = state.upstream_branch, }
       end,
     })
+
+    vim.api.nvim_create_autocmd("WinClosed", {
+      group = vim.api.nvim_create_augroup("GitDiffViewFileListWinClosed", { clear = true, }),
+      pattern = { tostring(state.new_winnr), tostring(state.old_winnr), tostring(state.file_list_winnr), },
+      callback = function()
+        if vim.api.nvim_win_is_valid(state.new_winnr) then vim.api.nvim_win_close(state.new_winnr, false) end
+        if vim.api.nvim_win_is_valid(state.old_winnr) then vim.api.nvim_win_close(state.old_winnr, false) end
+        if vim.api.nvim_win_is_valid(state.file_list_winnr) then vim.api.nvim_win_close(state.file_list_winnr, false) end
+      end,
+    })
+
+    vim.keymap.set("n", "<Plug>GitDiffViewScrollDown", function()
+      vim.api.nvim_win_call(state.old_winnr, function()
+        vim.cmd [[execute "normal! \<C-d>"]]
+      end)
+    end, { desc = "Scroll down in the diff view", })
+
+    vim.keymap.set("n", "<Plug>GitDiffViewScrollUp", function()
+      vim.api.nvim_win_call(state.old_winnr, function()
+        vim.cmd [[execute "normal! \<C-u>"]]
+      end)
+    end, { desc = "Scroll up in the diff view", })
   end
 )
 
@@ -664,9 +687,9 @@ end
 vim.keymap.set("n", "<leader>d", demo)
 
 M.setup = function()
-  setup_autocommands()
+  setup_global_autocmds()
   setup_file_watcher()
-  setup_keymaps()
+  setup_global_keymaps()
 end
 
 return M
