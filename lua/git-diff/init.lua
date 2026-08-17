@@ -69,6 +69,12 @@ local if_nil = function(val, fallback)
   return val
 end
 
+--- @param path string
+--- @return string[]
+M.readfile = function(path)
+  return vim.fn.readfile(path)
+end
+
 -- ====================
 -- Diff
 -- ====================
@@ -152,6 +158,26 @@ local vim_system_stdout = async(
   end
 )
 
+--- @param rel_filename string
+--- @return Promise<string?>
+M.read_index_file = function(rel_filename)
+  return vim_system_stdout { "git", "show", ":" .. rel_filename, }
+end
+
+--- @param rel_filename string
+--- @return Promise<string?>
+M.read_head_file = function(rel_filename)
+  return vim_system_stdout { "git", "show", "HEAD:" .. rel_filename, }
+end
+
+--- @param rel_filename string
+--- @param upstream_branch? string
+--- @return Promise<string?>
+M.read_upstream_file = function(rel_filename, upstream_branch)
+  upstream_branch = if_nil(upstream_branch, "master")
+  return vim_system_stdout { "git", "show", "origin/" .. upstream_branch .. ":" .. rel_filename, }
+end
+
 --- @class ResolveFileContentsParams
 --- @field file_location FileLocation
 --- @field rel_filename string
@@ -166,19 +192,18 @@ local resolve_file_contents = async(
 
     if opts.file_location == "worktree" then
       if opts.file_bufnr == nil then
-        local file_lines = vim.fn.readfile(opts.rel_filename)
+        local file_lines = M.readfile(opts.rel_filename)
         file_contents = table.concat(file_lines, "\n")
       else
         local buf_lines = vim.api.nvim_buf_get_lines(opts.file_bufnr, 0, -1, false)
         file_contents = table.concat(buf_lines, "\n")
       end
     elseif opts.file_location == "index" then
-      file_contents = await(vim_system_stdout { "git", "show", ":" .. opts.rel_filename, })
+      file_contents = await(M.read_index_file(opts.rel_filename))
     elseif opts.file_location == "head" then
-      file_contents = await(vim_system_stdout { "git", "show", "HEAD:" .. opts.rel_filename, })
+      file_contents = await(M.read_head_file(opts.rel_filename))
     elseif opts.file_location == "upstream" then
-      local upstream_branch = if_nil(opts.upstream_branch, "master")
-      file_contents = await(vim_system_stdout { "git", "show", "origin/" .. upstream_branch .. ":" .. opts.rel_filename, })
+      file_contents = await(M.read_upstream_file(opts.rel_filename, opts.upstream_branch))
     end
 
     if file_contents == nil then return resolve(nil) end
