@@ -584,8 +584,6 @@ local update_diff_view = unwaited_async(
       local new_lines = vim.split(new_str, "\n", { trimempty = true, })
       vim.api.nvim_buf_set_lines(state.new_bufnr, 0, -1, false, new_lines)
     end
-    vim.wo[state.new_winnr].diff = true
-    vim.wo[state.new_winnr].scrollbind = true
 
     local old_str = await(resolve_file_contents {
       file_location = old_file_location,
@@ -613,6 +611,7 @@ local open_diff_view = unwaited_async(
     state.upstream_branch = opts.upstream_branch
     state.new_bufnr = vim.api.nvim_create_buf(false, true)
     state.new_winnr = vim.api.nvim_get_current_win()
+    vim.api.nvim_win_set_buf(state.new_winnr, state.new_bufnr)
     vim.wo[state.new_winnr].winbar = "New"
 
     state.old_bufnr = vim.api.nvim_create_buf(false, true)
@@ -621,12 +620,6 @@ local open_diff_view = unwaited_async(
       win = state.new_winnr,
     })
     vim.wo[state.old_winnr].winbar = "Old"
-
-    vim.wo[state.new_winnr].diff = true
-    vim.wo[state.old_winnr].diff = true
-
-    vim.wo[state.new_winnr].scrollbind = true
-    vim.wo[state.old_winnr].scrollbind = true
 
     local diff_cmd = resolve_diff_cmd {
       diff_type = opts.diff_type,
@@ -641,16 +634,19 @@ local open_diff_view = unwaited_async(
     vim.cmd "botright 10split"
     state.file_list_winnr = vim.api.nvim_get_current_win()
     vim.api.nvim_win_set_buf(state.file_list_winnr, state.file_list_bufnr)
-    vim.wo[state.file_list_winnr].diff = false
     vim.wo[state.file_list_winnr].winbar = "Files"
     vim.bo[state.file_list_bufnr].modifiable = false
     vim.bo[state.file_list_bufnr].filetype = "git-diff-view-file-list"
+
+    vim.api.nvim_win_call(state.old_winnr, vim.cmd.diffthis)
+    vim.api.nvim_win_call(state.new_winnr, vim.cmd.diffthis)
 
     vim.api.nvim_create_autocmd({ "CursorMoved", }, {
       group = vim.api.nvim_create_augroup("GitDiffViewFileListCursorMove", { clear = true, }),
       buf = state.file_list_bufnr,
       callback = function()
         local rel_filename = vim.api.nvim_win_call(state.file_list_winnr, vim.api.nvim_get_current_line)
+        if rel_filename == nil or rel_filename == "" then return end
         update_diff_view { diff_type = opts.diff_type, rel_filename = rel_filename, upstream_branch = state.upstream_branch, }
       end,
     })
@@ -687,7 +683,7 @@ local demo = function()
   local curr_bufname = vim.fs.relpath(cwd, vim.api.nvim_buf_get_name(bufnr))
   assert(curr_bufname ~= nil)
 
-  open_diff_view { upstream_branch = "master", diff_type = "worktree-index", }
+  open_diff_view { upstream_branch = "master", diff_type = "index-upstream", }
 end
 vim.keymap.set("n", "<leader>d", demo)
 
