@@ -324,6 +324,26 @@ line5
   expect_lines { "line1", "line2", "line3", "line4", "line5", }
 end
 
+T["reset hunk"]["does nothing when cursor is not on a hunk"] = function()
+  mock_read_index_file [[line1
+line2
+line3
+line4
+line5
+]]
+  set_worktree_buffer("test.txt", { "line1", "line2 changed", "line3", "line4", "line5", })
+  trigger_diff_update()
+
+  local bufnr = child.api.nvim_get_current_buf()
+  expect_hunks(bufnr)
+
+  child.api.nvim_win_set_cursor(0, { 4, 0, })
+  child.type_keys "<Plug>GitDiffResetHunk"
+
+  expect_lines { "line1", "line2 changed", "line3", "line4", "line5", }
+end
+
+
 T["reset hunk"]["resets a visually selected range"] = function()
   -- TODO: modify several lines, select them in visual mode, and reset.
 end
