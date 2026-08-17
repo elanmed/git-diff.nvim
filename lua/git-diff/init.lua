@@ -543,6 +543,18 @@ local state = {
   diff_type = nil,
 }
 
+--- @class ShouldUseRealFilenameBufnrOpts
+--- @field diff_type DiffType
+--- @field rel_filename string
+
+--- @param opts ShouldUseRealFilenameBufnrOpts
+local function should_use_real_filename_bufnr(opts)
+  local filename_bufnr = vim.fn.bufnr(opts.rel_filename)
+  if filename_bufnr == -1 then return false end
+
+  return vim.list_contains({ "worktree-index", "worktree-head", "worktree-upstream", }, opts.diff_type)
+end
+
 --- @class UpdateDiffViewParams
 --- @field diff_type DiffType
 --- @field upstream_branch? string
@@ -555,7 +567,10 @@ local update_diff_view = unwaited_async(
     local new_file_location, old_file_location = get_file_locations_from_diff_type(opts.diff_type)
 
     local filename_bufnr = vim.fn.bufnr(opts.rel_filename)
-    local use_real_filename_bufnr = filename_bufnr ~= -1
+    local use_real_filename_bufnr = should_use_real_filename_bufnr {
+      diff_type = opts.diff_type,
+      rel_filename = opts.rel_filename,
+    }
 
     if use_real_filename_bufnr then
       state.new_bufnr = filename_bufnr
@@ -617,7 +632,7 @@ local open_diff_view = unwaited_async(
 
     state.file_list_bufnr = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_buf_set_lines(state.file_list_bufnr, 0, -1, false, file_list_lines)
-    vim.cmd.botright "10split"
+    vim.cmd "botright 10split"
     state.file_list_winnr = vim.api.nvim_get_current_win()
     vim.api.nvim_win_set_buf(state.file_list_winnr, state.file_list_bufnr)
     vim.wo[state.file_list_winnr].winbar = "Files"
