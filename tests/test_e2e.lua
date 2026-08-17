@@ -72,8 +72,8 @@ end
 T["hunk navigation"] = new_set()
 
 T["hunk navigation"]["jumps to next hunk"] = function()
-  mock_read_index_file "line1\nline2\nline3\n"
-  set_worktree_buffer("test.txt", { "line1", "line2", "line3 changed", "line4", })
+  mock_read_index_file "line1\nline2\nline3\nline4\nline5\n"
+  set_worktree_buffer("test.txt", { "line1", "line2 changed", "line3", "line4 changed", "line5", })
   trigger_diff_update()
 
   local bufnr = child.api.nvim_get_current_buf()
@@ -82,19 +82,49 @@ T["hunk navigation"]["jumps to next hunk"] = function()
   child.api.nvim_win_set_cursor(0, { 1, 0, })
   child.type_keys "<Plug>GitDiffNextHunk"
 
-  eq(child.api.nvim_win_get_cursor(0)[1], 3)
+  eq(child.api.nvim_win_get_cursor(0)[1], 2)
 end
 
 T["hunk navigation"]["jumps to previous hunk"] = function()
-  -- TODO: stage a known file, modify it, then jump to previous hunk.
+  mock_read_index_file("line1\nline2\nline3\nline4\nline5\n")
+  set_worktree_buffer("test.txt", { "line1", "line2 changed", "line3", "line4 changed", "line5", })
+  trigger_diff_update()
+
+  local bufnr = child.api.nvim_get_current_buf()
+  expect_hunks(bufnr)
+
+  child.api.nvim_win_set_cursor(0, { 4, 0, })
+  child.type_keys "<Plug>GitDiffPrevHunk"
+
+  eq(child.api.nvim_win_get_cursor(0)[1], 2)
 end
 
 T["hunk navigation"]["wraps to first hunk after last"] = function()
-  -- TODO: test wrap-around from last hunk to first hunk.
+  mock_read_index_file("line1\nline2\nline3\nline4\nline5\n")
+  set_worktree_buffer("test.txt", { "line1", "line2 changed", "line3", "line4 changed", "line5", })
+  trigger_diff_update()
+
+  local bufnr = child.api.nvim_get_current_buf()
+  expect_hunks(bufnr)
+
+  child.api.nvim_win_set_cursor(0, { 5, 0, })
+  child.type_keys "<Plug>GitDiffNextHunk"
+
+  eq(child.api.nvim_win_get_cursor(0)[1], 2)
 end
 
 T["hunk navigation"]["wraps to last hunk before first"] = function()
-  -- TODO: test wrap-around from first hunk to last hunk.
+  mock_read_index_file("line1\nline2\nline3\nline4\nline5\n")
+  set_worktree_buffer("test.txt", { "line1", "line2 changed", "line3", "line4 changed", "line5", })
+  trigger_diff_update()
+
+  local bufnr = child.api.nvim_get_current_buf()
+  expect_hunks(bufnr)
+
+  child.api.nvim_win_set_cursor(0, { 1, 0, })
+  child.type_keys "<Plug>GitDiffPrevHunk"
+
+  eq(child.api.nvim_win_get_cursor(0)[1], 4)
 end
 
 T["hunk signs"] = new_set()
