@@ -540,7 +540,6 @@ local state = {
   old_bufnr = nil,
   file_list_winnr = nil,
   file_list_bufnr = nil,
-  diff_type = nil,
 }
 
 --- @class ShouldUseRealFilenameBufnrOpts
@@ -573,9 +572,9 @@ local update_diff_view = unwaited_async(
     }
 
     if use_real_filename_bufnr then
-      state.new_bufnr = filename_bufnr
-      vim.api.nvim_win_set_buf(state.new_winnr, state.new_bufnr)
+      vim.api.nvim_win_set_buf(state.new_winnr, filename_bufnr)
     else
+      vim.api.nvim_win_set_buf(state.new_winnr, state.new_bufnr)
       local new_str = await(resolve_file_contents {
         file_location = new_file_location,
         rel_filename = opts.rel_filename,
@@ -595,8 +594,7 @@ local update_diff_view = unwaited_async(
     local old_lines = vim.split(old_str, "\n", { trimempty = true, })
     vim.api.nvim_buf_set_lines(state.old_bufnr, 0, -1, false, old_lines)
 
-    vim.api.nvim_win_call(state.new_winnr, vim.cmd.diffthis)
-    vim.api.nvim_win_call(state.old_winnr, vim.cmd.diffthis)
+    vim.cmd.diffupdate()
   end
 )
 
@@ -606,21 +604,24 @@ local update_diff_view = unwaited_async(
 
 --- @type fun(opts: OpenDiffViewParams): nil
 local open_diff_view = unwaited_async(
---- @param resolve Resolve<any>
 --- @param opts OpenDiffViewParams
   function(_, opts)
     vim.cmd.tabnew()
 
-    state.diff_type = opts.diff_type
     state.upstream_branch = opts.upstream_branch
     state.new_bufnr = vim.api.nvim_create_buf(false, true)
     state.new_winnr = vim.api.nvim_get_current_win()
+    vim.wo[state.new_winnr].winbar = "New"
 
     state.old_bufnr = vim.api.nvim_create_buf(false, true)
     state.old_winnr = vim.api.nvim_open_win(state.old_bufnr, true, {
       split = "left",
       win = state.new_winnr,
     })
+    vim.wo[state.old_winnr].winbar = "Old"
+
+    vim.wo[state.new_winnr].diff = true
+    vim.wo[state.old_winnr].diff = true
 
     local diff_cmd = resolve_diff_cmd {
       diff_type = opts.diff_type,
@@ -635,14 +636,16 @@ local open_diff_view = unwaited_async(
     vim.cmd "botright 10split"
     state.file_list_winnr = vim.api.nvim_get_current_win()
     vim.api.nvim_win_set_buf(state.file_list_winnr, state.file_list_bufnr)
+    vim.wo[state.file_list_winnr].diff = false
     vim.wo[state.file_list_winnr].winbar = "Files"
+    vim.bo[state.file_list_bufnr].modifiable = false
 
     vim.api.nvim_create_autocmd({ "CursorMoved", }, {
       group = vim.api.nvim_create_augroup("GitDiffViewFileListCursorMove", { clear = true, }),
       buf = state.file_list_bufnr,
       callback = function()
         local rel_filename = vim.api.nvim_win_call(state.file_list_winnr, vim.api.nvim_get_current_line)
-        update_diff_view { diff_type = state.diff_type, rel_filename = rel_filename, upstream_branch = state.upstream_branch, }
+        update_diff_view { diff_type = opts.diff_type, rel_filename = rel_filename, upstream_branch = state.upstream_branch, }
       end,
     })
   end
