@@ -15,15 +15,7 @@ lint:
 	lua-language-server --check=./lua --checklevel=Error
 
 docs:
-	./deps/panvimdoc/panvimdoc.sh \
-		--project-name git-diff \
-		--input-file README.md \
-		--toc true \
-		--description "" \
-		--dedup-subheadings true \
-		--doc-mapping true \
-		--doc-mapping-project-name false \
-		--shift-heading-level-by -1
+	./deps/ts-vimdoc.nvim/scripts/docgen.sh README.md doc/git-diff.txt git-diff
 	nvim --headless -c "helptags doc/" -c "qa"
 
 deploy: test lint docs

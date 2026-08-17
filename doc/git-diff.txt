@@ -1,103 +1,181 @@
-*git-diff.txt*
-                                For NVIM v0.13.0    Last change: 2026 April 24
+*git-diff.txt*                                     Last change: 2026 August 17
 
 ==============================================================================
 Table of Contents                                 *git-diff-table-of-contents*
 
-1. Features                                                |git-diff-features|
-2. Example config                                    |git-diff-example-config|
-3. Plug remaps                                          |git-diff-plug-remaps|
-  - <Plug>GitDiffNextHunk         |git-diff-plug-remaps-<plug>gitdiffnexthunk|
-  - <Plug>GitDiffPrevHunk         |git-diff-plug-remaps-<plug>gitdiffprevhunk|
-  - <Plug>GitDiffResetHunk       |git-diff-plug-remaps-<plug>gitdiffresethunk|
-  - <Plug>GitDiffResetFile       |git-diff-plug-remaps-<plug>gitdiffresetfile|
-4. Highlight groups                                |git-diff-highlight-groups|
-5. Autocommand events                            |git-diff-autocommand-events|
-  - User GitIndexChanged    |git-diff-autocommand-events-user-gitindexchanged|
-  - User GitHeadChanged      |git-diff-autocommand-events-user-githeadchanged|
-6. TODO:                                                      |git-diff-todo:|
-A minimal plugin to view, navigate, and reset git hunks
-
+Features ................................................. |git-diff-features|
+Example config ..................................... |git-diff-example-config|
+Plug remaps ........................................... |git-diff-plug-remaps|
+`<Plug>GitDiffNextHunk` ..................... |git-diff-<plug>gitdiffnexthunk|
+`<Plug>GitDiffPrevHunk` ..................... |git-diff-<plug>gitdiffprevhunk|
+`<Plug>GitDiffResetHunk` ................... |git-diff-<plug>gitdiffresethunk|
+`<Plug>GitDiffResetFile` ................... |git-diff-<plug>gitdiffresetfile|
+`<Plug>GitDiffViewScrollDown` ......... |git-diff-<plug>gitdiffviewscrolldown|
+`<Plug>GitDiffViewScrollUp` ............. |git-diff-<plug>gitdiffviewscrollup|
+API ........................................................... |git-diff-api|
+`require("git-diff").open_diff_view(opts)`  |git-diff-require("git-diff").open_diff_view(opts)|
+`require("git-diff").toggle_diff_view(opts)`  |git-diff-require("git-diff").toggle_diff_view(opts)|
+Highlight groups ................................. |git-diff-highlight-groups|
+Autocommand events ............................. |git-diff-autocommand-events|
+`User GitIndexChanged` ....................... |git-diff-user-gitindexchanged|
+`User GitHeadChanged` ......................... |git-diff-user-githeadchanged|
+`User GitDiffViewOpen` ....................... |git-diff-user-gitdiffviewopen|
+Filetype ................................................. |git-diff-filetype|
 
 ==============================================================================
-1. Features                                                *git-diff-features*
+`GIT-DIFF.NVIM`                                       *git-diff-git-diff.nvim*
 
-- 1 source file (~400 LOC), no dependencies
+
+A minimal plugin to view, navigate, and reset git hunks. Also includes a diff
+view for comparing any two git file locations.
+
+
+------------------------------------------------------------------------------
+FEATURES                                                   *git-diff-features*
+
+
+- 1 source file (~730 LOC), no dependencies
 - Async diff computation via coroutines (no UI freezing)
 - Signs update on every edit with debouncing (300ms)
-- Watches `.git/index` and `.git/HEAD` for external changes (e.g. `git checkout`, `git stash`, `git reset`)
+- Watches `.git/index` and `.git/HEAD` for external changes (e.g. `git
+  checkout`, `git stash`, `git reset`)
 - Navigate to next/previous hunk with wrapping
 - Reset a single hunk, a visual selection of hunks, or the entire file
+- Diff view: compare worktree, index, HEAD, and upstream in a side-by-side
+  split with file list
 
+------------------------------------------------------------------------------
+EXAMPLE CONFIG                                       *git-diff-example-config*
 
-==============================================================================
-2. Example config                                    *git-diff-example-config*
 
 >lua
     vim.keymap.set("n", "]h", "<Plug>GitDiffNextHunk")
     vim.keymap.set("n", "[h", "<Plug>GitDiffPrevHunk")
+    
     vim.keymap.set("n", "gh", "<Plug>GitDiffResetHunk")
     vim.keymap.set("v", "gh", "<Plug>GitDiffResetHunk")
     vim.keymap.set("n", "gH", "<Plug>GitDiffResetFile")
+    
+    vim.keymap.set("n", "<leader>gd", function()
+      require("git-diff").toggle_diff_view { diff_type = "worktree-index" }
+    end)
+    vim.keymap.set("n", "<leader>gD", function()
+      require("git-diff").toggle_diff_view { diff_type = "worktree-head" }
+    end)
 <
 
+------------------------------------------------------------------------------
+PLUG REMAPS                                             *git-diff-plug-remaps*
 
-==============================================================================
-3. Plug remaps                                          *git-diff-plug-remaps*
 
 
-<PLUG>GITDIFFNEXTHUNK             *git-diff-plug-remaps-<plug>gitdiffnexthunk*
+                                                                              
+`<PLUG>GITDIFFNEXTHUNK`                       *git-diff-<plug>gitdiffnexthunk*
 
 Navigate to the next hunk. Wraps to the first hunk if none remain.
 
 
-<PLUG>GITDIFFPREVHUNK             *git-diff-plug-remaps-<plug>gitdiffprevhunk*
+                                                                              
+`<PLUG>GITDIFFPREVHUNK`                       *git-diff-<plug>gitdiffprevhunk*
 
 Navigate to the previous hunk. Wraps to the last hunk if none remain.
 
 
-<PLUG>GITDIFFRESETHUNK           *git-diff-plug-remaps-<plug>gitdiffresethunk*
+                                                                              
+`<PLUG>GITDIFFRESETHUNK`                     *git-diff-<plug>gitdiffresethunk*
 
 - In normal mode: reset the hunk on the current line
 - In visual mode: reset all hunks that overlap with the visual selection
 
+                                                                              
+`<PLUG>GITDIFFRESETFILE`                     *git-diff-<plug>gitdiffresetfile*
 
-<PLUG>GITDIFFRESETFILE           *git-diff-plug-remaps-<plug>gitdiffresetfile*
-
-Reset the entire file to the HEAD version.
-
-
-==============================================================================
-4. Highlight groups                                *git-diff-highlight-groups*
-
-  Group            Default link   Used for
-  ---------------- -------------- ----------------
-  DiffSignDelete   DiffDelete     Deleted lines
-  DiffSignAdd      DiffAdd        Added lines
-  DiffSignChange   DiffChange     Modified lines
-
-==============================================================================
-5. Autocommand events                            *git-diff-autocommand-events*
+Reset the entire file to the index version.
 
 
-USER GITINDEXCHANGED        *git-diff-autocommand-events-user-gitindexchanged*
+                                                                              
+`<PLUG>GITDIFFVIEWSCROLLDOWN`           *git-diff-<plug>gitdiffviewscrolldown*
 
-Fired automatically when `.git/index` changes on disk (e.g. `git add`, `git
-checkout`, `git stash`, `git reset`)
-
-
-USER GITHEADCHANGED          *git-diff-autocommand-events-user-githeadchanged*
-
-Fired automatically when `.git/HEAD` changes on disk (e.g. `git checkout
-<branch>`, `git reset --hard`)
+Scroll down in the diff view (both splits simultaneously).
 
 
-==============================================================================
-6. TODO:                                                      *git-diff-todo:*
+                                                                              
+`<PLUG>GITDIFFVIEWSCROLLUP`               *git-diff-<plug>gitdiffviewscrollup*
 
-- ☐ Test coverage
-- ☐ Config (disabling, debounce time)
+Scroll up in the diff view (both splits simultaneously).
 
-Generated by panvimdoc <https://github.com/kdheepak/panvimdoc>
 
-vim:tw=78:ts=8:noet:ft=help:norl:
+------------------------------------------------------------------------------
+API                                                             *git-diff-api*
+
+
+
+                                                                              
+`REQUIRE("GIT-DIFF").OPEN_DIFF_VIEW(OPTS)`*git-diff-require("git-diff").open_diff_view(opts)*
+
+Opens a new tab with a 3-pane diff view:
+
+- **Old** (left): the old file version
+- **New** (right): the new file version
+- **Files** (bottom): list of changed files
+`opts`:
+
+- `diff_type` (`string`): one of `"worktree-index"`, `"worktree-head"`,
+  `"worktree-upstream"`, `"index-head"`, `"index-upstream"`, `"head-upstream"`
+- `upstream_branch` (`string?`): upstream branch name (default: `"master"`)
+If the diff view tab already exists, switches to it instead of creating a new
+one.
+
+
+                                                                              
+`REQUIRE("GIT-DIFF").TOGGLE_DIFF_VIEW(OPTS)`*git-diff-require("git-diff").toggle_diff_view(opts)*
+
+Toggles the diff view: opens it if not open, closes it if already open.
+
+
+------------------------------------------------------------------------------
+HIGHLIGHT GROUPS                                   *git-diff-highlight-groups*
+
+
+| Group            | Default link | Used for       |
+| ---------------- | ------------ | -------------- |
+| `DiffSignDelete` | `DiffDelete` | Deleted lines  |
+| `DiffSignAdd`    | `DiffAdd`    | Added lines    |
+| `DiffSignChange` | `DiffChange` | Modified lines |
+
+
+------------------------------------------------------------------------------
+AUTOCOMMAND EVENTS                               *git-diff-autocommand-events*
+
+
+
+                                                                              
+`USER GITINDEXCHANGED`                         *git-diff-user-gitindexchanged*
+
+Fired when `.git/index` changes on disk (e.g. `git add`, `git checkout`, `git
+stash`, `git reset`).
+
+
+                                                                              
+`USER GITHEADCHANGED`                           *git-diff-user-githeadchanged*
+
+Fired when `.git/HEAD` changes on disk (e.g. `git checkout <branch>`, `git
+reset --hard`).
+
+
+                                                                              
+`USER GITDIFFVIEWOPEN`                         *git-diff-user-gitdiffviewopen*
+
+Fired after the diff view opens. `data` contains `old_winnr`, `new_winnr`,
+`file_list_winnr`, `old_bufnr`, `new_bufnr`, `file_list_bufnr`.
+
+
+------------------------------------------------------------------------------
+FILETYPE                                                   *git-diff-filetype*
+
+
+The file list buffer in the diff view uses `git-diff-view-file-list` filetype
+for custom highlighting or keymaps.
+
+
+vim:tw=78:ts=8:ft=help:norl:

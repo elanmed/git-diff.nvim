@@ -1,7 +1,7 @@
 # TODO
 
 - [ ] Tests
-- [ ] Swap back to treesitter for generating docs
+- [x] Swap back to treesitter for generating docs
 - [ ] Support `diff_type` for highlights
 
 ## Notes:
@@ -27,8 +27,6 @@
 | **head**     |                        | —                               | `git diff --name-only HEAD origin/main`     |
 | **upstream** |                        |                                 | —                                           |
 
-- TODO: how should resetting hunks work when neither left nor right is the current buffer
-  - Diff highlights shouldn't show?
 - TODO: what would it look like to stage hunks?
   - Need to create a patch and apply it, can generate a patch from a file
     - Either generate a patch from the current file, parse the string, and only keep the hunk you want
