@@ -1,5 +1,9 @@
 # TODO
 
+- [ ] Tests
+- [ ] Swap back to treesitter for generating docs
+- [ ] Support `diff_type` for highlights
+
 ## Notes:
 
 - Highlights: do I want to show other kinds of diffs via highlight in the current file?
