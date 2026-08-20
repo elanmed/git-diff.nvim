@@ -118,6 +118,18 @@ local expect_lines = MiniTest.new_expectation(
   end
 )
 
+local expect_state = MiniTest.new_expectation(
+  "state condition met",
+  function(predicate, timeout)
+    timeout = timeout or 1000
+    return vim.wait(timeout, predicate)
+  end,
+  function(_, timeout)
+    timeout = timeout or 1000
+    return string.format("Expected state condition to be met after %d ms", timeout)
+  end
+)
+
 
 local function set_worktree_buffer(rel_path, lines)
   child.bo.buftype = ""
@@ -137,6 +149,31 @@ end
 
 local function trigger_diff_update()
   child.cmd "doautocmd BufEnter"
+end
+
+local function get_diff_view_windows(filename)
+  local new_win, old_win, files_win
+  for _, win in ipairs(child.api.nvim_tabpage_list_wins(0)) do
+    local bufnr = child.api.nvim_win_get_buf(win)
+    local buftype = child.api.nvim_buf_get_option(bufnr, "buftype")
+    local filetype = child.api.nvim_buf_get_option(bufnr, "filetype")
+    local bufname = child.api.nvim_buf_get_name(bufnr)
+    local basename = child.fn.fnamemodify(bufname, ":t")
+
+    if filetype == "git-diff-view-file-list" then
+      files_win = win
+    elseif buftype == "" and basename == filename then
+      new_win = win
+    else
+      old_win = win
+    end
+  end
+  return new_win, old_win, files_win
+end
+
+local function get_win_lines(win_id)
+  local bufnr = child.api.nvim_win_get_buf(win_id)
+  return child.api.nvim_buf_get_lines(bufnr, 0, -1, false)
 end
 
 
@@ -420,21 +457,18 @@ line3
 
   child.lua [[M.open_diff_view({ diff_type = "worktree-index" })]]
 
-  local ok = child.lua_get [[vim.wait(1000, function()
-    return #vim.api.nvim_list_tabpages() == 2 and #vim.api.nvim_tabpage_list_wins(0) == 3
-  end)]]
-  eq(ok, true)
+  expect_state(function()
+    return #child.api.nvim_list_tabpages() == 2 and #child.api.nvim_tabpage_list_wins(0) == 3
+  end)
 
   eq(#child.api.nvim_list_tabpages(), 2)
   eq(#child.api.nvim_tabpage_list_wins(0), 3)
-end
 
-T["diff view"]["lists changed files"] = function()
-  -- TODO: verify the file list window contains expected file names.
-end
+  local new_win, old_win, files_win = get_diff_view_windows "test.txt"
 
-T["diff view"]["shows old and new content"] = function()
-  -- TODO: verify old/new window contents for a modified file.
+  eq(get_win_lines(new_win), { "line1 changed", "line2", "line3", })
+  eq(get_win_lines(old_win), { "line1", "line2", "line3", })
+  eq(get_win_lines(files_win), { "test.txt", })
 end
 
 T["diff view"]["updates old/new content on file selection"] = function()
