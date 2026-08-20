@@ -716,12 +716,12 @@ M.open_diff_view = unwaited_async(
     vim.wo[state.file_list_winnr].winbar = "Files"
     vim.bo[state.file_list_bufnr].filetype = "git-diff-view-file-list"
 
-    vim.api.nvim_win_call(state.old_winnr, vim.cmd.diffthis)
-    vim.api.nvim_win_call(state.new_winnr, vim.cmd.diffthis)
-
     if #file_list_lines > 0 then
       update_diff_view { diff_type = opts.diff_type, rel_filename = file_list_lines[1], upstream_branch = state.upstream_branch, }
     end
+
+    vim.api.nvim_win_call(state.old_winnr, vim.cmd.diffthis)
+    vim.api.nvim_win_call(state.new_winnr, vim.cmd.diffthis)
 
     vim.api.nvim_create_autocmd({ "CursorMoved", }, {
       group = vim.api.nvim_create_augroup("GitDiffViewFileListCursorMove", { clear = true, }),
