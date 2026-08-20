@@ -10,7 +10,7 @@ A minimal plugin to view, navigate, and reset git hunks. Also includes a diff vi
 - Watches `.git/index` and `.git/HEAD` for external changes (e.g. `git checkout`, `git stash`, `git reset`)
 - Navigate to next/previous hunk with wrapping
 - Reset a single hunk, a visual selection of hunks, or the entire file
-- Diff view: compare worktree, index, HEAD, and upstream in a side-by-side split with file list
+- Diff view: compare worktree, index, HEAD, upstream, and merge-base versions in a side-by-side split with file list
 
 ## Example config
 
@@ -27,6 +27,9 @@ vim.keymap.set("n", "<leader>gd", function()
 end)
 vim.keymap.set("n", "<leader>gD", function()
   require("git-diff").toggle_diff_view { diff_type = "worktree-head" }
+end)
+vim.keymap.set("n", "<leader>gm", function()
+  require("git-diff").toggle_diff_view { diff_type = "head-mergebase" }
 end)
 ```
 
@@ -69,7 +72,7 @@ Opens a new tab with a 3-pane diff view:
 
 `opts`:
 
-- `diff_type` (`string`): one of `"worktree-index"`, `"worktree-head"`, `"worktree-upstream"`, `"index-head"`, `"index-upstream"`, `"head-upstream"`
+- `diff_type` (`string`): one of `"worktree-index"`, `"worktree-head"`, `"worktree-upstream"`, `"worktree-mergebase"`, `"index-head"`, `"index-upstream"`, `"index-mergebase"`, `"head-upstream"`, `"head-mergebase"`
 - `upstream_branch` (`string?`): upstream branch name (default: `"master"`)
 
 If the diff view tab already exists, switches to it instead of creating a new one.
