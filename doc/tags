@@ -2,6 +2,7 @@ git-diff-<plug>gitdiffnexthunk	git-diff.txt	/*git-diff-<plug>gitdiffnexthunk*
 git-diff-<plug>gitdiffprevhunk	git-diff.txt	/*git-diff-<plug>gitdiffprevhunk*
 git-diff-<plug>gitdiffresetfile	git-diff.txt	/*git-diff-<plug>gitdiffresetfile*
 git-diff-<plug>gitdiffresethunk	git-diff.txt	/*git-diff-<plug>gitdiffresethunk*
+git-diff-<plug>gitdiffviewrefresh	git-diff.txt	/*git-diff-<plug>gitdiffviewrefresh*
 git-diff-<plug>gitdiffviewscrolldown	git-diff.txt	/*git-diff-<plug>gitdiffviewscrolldown*
 git-diff-<plug>gitdiffviewscrollup	git-diff.txt	/*git-diff-<plug>gitdiffviewscrollup*
 git-diff-api	git-diff.txt	/*git-diff-api*

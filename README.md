@@ -60,6 +60,10 @@ Scroll down in the diff view (both splits simultaneously).
 
 Scroll up in the diff view (both splits simultaneously).
 
+### `<Plug>GitDiffViewRefresh`
+
+Refresh the list of files with diffs.
+
 ## API
 
 ### `require("git-diff").open_diff_view(opts)`

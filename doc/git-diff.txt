@@ -1,4 +1,4 @@
-*git-diff.txt*                                     Last change: 2026 August 17
+*git-diff.txt*                                     Last change: 2026 August 20
 
 ==============================================================================
 Table of Contents                                 *git-diff-table-of-contents*
@@ -12,6 +12,7 @@ Plug remaps ........................................... |git-diff-plug-remaps|
 `<Plug>GitDiffResetFile` ................... |git-diff-<plug>gitdiffresetfile|
 `<Plug>GitDiffViewScrollDown` ......... |git-diff-<plug>gitdiffviewscrolldown|
 `<Plug>GitDiffViewScrollUp` ............. |git-diff-<plug>gitdiffviewscrollup|
+`<Plug>GitDiffViewRefresh` ............... |git-diff-<plug>gitdiffviewrefresh|
 API ........................................................... |git-diff-api|
 `require("git-diff").open_diff_view(opts)`  |git-diff-require("git-diff").open_diff_view(opts)|
 `require("git-diff").toggle_diff_view(opts)`  |git-diff-require("git-diff").toggle_diff_view(opts)|
@@ -106,6 +107,12 @@ Scroll down in the diff view (both splits simultaneously).
 `<PLUG>GITDIFFVIEWSCROLLUP`               *git-diff-<plug>gitdiffviewscrollup*
 
 Scroll up in the diff view (both splits simultaneously).
+
+
+                                                                              
+`<PLUG>GITDIFFVIEWREFRESH`                 *git-diff-<plug>gitdiffviewrefresh*
+
+Refresh the list of files with diffs.
 
 
 ------------------------------------------------------------------------------
