@@ -60,6 +60,14 @@ local function mock_read_index_file(content)
   ]], content))
 end
 
+local function mock_run_diff_cmd(fn_name, content)
+  child.lua(string.format([[
+    M.%s = function()
+      return function(resolve) resolve(%q) end
+    end
+  ]], fn_name, content))
+end
+
 local expect_sign = MiniTest.new_expectation(
   "line has expected sign",
   function(bufnr, line_1i, hl_group)
@@ -116,6 +124,14 @@ local function set_worktree_buffer(rel_path, lines)
   child.bo.readonly = false
   child.bo.modifiable = true
   child.api.nvim_buf_set_name(0, child.fn.getcwd() .. "/" .. rel_path)
+  child.api.nvim_buf_set_lines(0, 0, -1, true, lines)
+end
+
+local function set_named_buffer(rel_path, lines)
+  child.bo.buftype = ""
+  child.bo.readonly = false
+  child.bo.modifiable = true
+  child.api.nvim_buf_set_name(0, rel_path)
   child.api.nvim_buf_set_lines(0, 0, -1, true, lines)
 end
 
@@ -389,7 +405,28 @@ end
 T["diff view"] = new_set()
 
 T["diff view"]["opens a diff view tab"] = function()
-  -- TODO: call M.open_diff_view() and verify tab/windows/buffers.
+  set_named_buffer("test.txt", { "line1 changed", "line2", "line3", })
+
+  mock_read_index_file [[line1
+line2
+line3
+]]
+  trigger_diff_update()
+
+  local bufnr = child.api.nvim_get_current_buf()
+  expect_hunks(bufnr)
+
+  mock_run_diff_cmd("run_diff_cmd_worktree_index", "test.txt\n")
+
+  child.lua [[M.open_diff_view({ diff_type = "worktree-index" })]]
+
+  local ok = child.lua_get [[vim.wait(1000, function()
+    return #vim.api.nvim_list_tabpages() == 2 and #vim.api.nvim_tabpage_list_wins(0) == 3
+  end)]]
+  eq(ok, true)
+
+  eq(#child.api.nvim_list_tabpages(), 2)
+  eq(#child.api.nvim_tabpage_list_wins(0), 3)
 end
 
 T["diff view"]["lists changed files"] = function()
