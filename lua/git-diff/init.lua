@@ -49,6 +49,14 @@ end
 -- Misc utils
 -- ====================
 
+--- @param level vim.log.levels
+--- @param msg string
+--- @param ... any
+local notify = function(level, msg, ...)
+  msg = "[tree.nvim]: " .. msg
+  vim.notify(msg:format(...), level)
+end
+
 --- @param input table
 local tbl_reverse = function(input)
   local reversed = {}
@@ -390,7 +398,7 @@ local function navigate_hunk(direction)
   local buf_state = buffer_state[curr_bufnr]
 
   if buf_state == nil then
-    return vim.notify("Missing diff state for this buffer", vim.log.levels.ERROR)
+    return notify(vim.log.levels.ERROR, "Missing diff state for this buffer")
   end
 
   local indices = (function()
@@ -399,7 +407,7 @@ local function navigate_hunk(direction)
   end)()
 
   if #indices == 0 then
-    return vim.notify("No hunks", vim.log.levels.ERROR)
+    return notify(vim.log.levels.ERROR, "No hunks")
   end
 
   local row_1i = vim.api.nvim_win_get_cursor(0)[1]
@@ -424,11 +432,11 @@ local function navigate_hunk(direction)
     if direction == "next" then
       local hunk = M.unpack_hunk(buf_state.indices[1])
       vim.api.nvim_win_set_cursor(0, { hunk.start_new_1i, 0, })
-      return vim.notify("Wrapping to the first hunk", vim.log.levels.INFO)
+      return notify(vim.log.levels.INFO, "Wrapping to the first hunk")
     else
       local hunk = M.unpack_hunk(buf_state.indices[#buf_state.indices])
       vim.api.nvim_win_set_cursor(0, { hunk.start_new_1i, 0, })
-      return vim.notify("Wrapping to the last hunk", vim.log.levels.INFO)
+      return notify(vim.log.levels.INFO, "Wrapping to the last hunk")
     end
   end
 
@@ -554,7 +562,7 @@ local setup_global_keymaps = function()
     local curr_bufnr = vim.api.nvim_get_current_buf()
     local buf_state = buffer_state[curr_bufnr]
     if buf_state == nil then
-      return vim.notify("Missing diff state for this buffer", vim.log.levels.ERROR)
+      return notify(vim.log.levels.ERROR, "Missing diff state for this buffer")
     end
 
     local row_1i = vim.api.nvim_win_get_cursor(0)[1]
@@ -565,7 +573,7 @@ local setup_global_keymaps = function()
     local curr_bufnr = vim.api.nvim_get_current_buf()
     local buf_state = buffer_state[curr_bufnr]
     if buf_state == nil then
-      return vim.notify("Missing diff state for this buffer", vim.log.levels.ERROR)
+      return notify(vim.log.levels.ERROR, "Missing diff state for this buffer")
     end
 
     local start_visual_1i = vim.fn.line "v"
@@ -580,7 +588,7 @@ local setup_global_keymaps = function()
     local curr_bufnr = vim.api.nvim_get_current_buf()
     local buf_state = buffer_state[curr_bufnr]
     if buf_state == nil then
-      return vim.notify("Missing diff state for this buffer", vim.log.levels.ERROR)
+      return notify(vim.log.levels.ERROR, "Missing diff state for this buffer")
     end
 
     reset_hunk {
@@ -605,23 +613,6 @@ local initial_state = {
 
 local state = vim.deepcopy(initial_state)
 
---- @class ShouldUseRealFilenameBufnrOpts
---- @field diff_type DiffType
---- @field rel_filename string
-
---- @param opts ShouldUseRealFilenameBufnrOpts
-local function should_use_real_filename_bufnr(opts)
-  local filename_bufnr = vim.fn.bufnr(opts.rel_filename)
-  if filename_bufnr == -1 then return false end
-
-  return vim.list_contains({
-    "worktree-index",
-    "worktree-head",
-    "worktree-upstream",
-    "worktree-mergebase",
-  }, opts.diff_type)
-end
-
 --- @class UpdateDiffViewParams
 --- @field diff_type DiffType
 --- @field upstream_branch? string
@@ -633,11 +624,14 @@ local update_diff_view = unwaited_async(
   function(_, opts)
     local new_file_location, old_file_location = get_file_locations_from_diff_type(opts.diff_type)
 
-    local filename_bufnr = vim.fn.bufnr(opts.rel_filename)
-    local use_real_filename_bufnr = should_use_real_filename_bufnr {
-      diff_type = opts.diff_type,
-      rel_filename = opts.rel_filename,
-    }
+    local filename_bufnr = vim.fn.bufnr(opts.rel_filename, 1)
+    local use_real_filename_bufnr = vim.list_contains({
+      "worktree-index",
+      "worktree-head",
+      "worktree-upstream",
+      "worktree-mergebase",
+    }, opts.diff_type)
+
 
     if use_real_filename_bufnr then
       vim.api.nvim_win_set_buf(state.new_winnr, filename_bufnr)
@@ -697,20 +691,29 @@ M.open_diff_view = unwaited_async(
     })
     vim.wo[state.old_winnr].winbar = "Old"
 
-    local file_list_str = await(M.run_diff_cmd {
-      diff_type = opts.diff_type,
-      upstream_branch = opts.upstream_branch,
-    })
-    file_list_str = if_nil(file_list_str, "")
-    local file_list_lines = vim.split(file_list_str, "\n", { trimempty = true, })
-
     state.file_list_bufnr = vim.api.nvim_create_buf(false, true)
-    vim.api.nvim_buf_set_lines(state.file_list_bufnr, 0, -1, false, file_list_lines)
+
+    --- @type fun(): Promise<string>
+    local set_file_list = async(function(resolve)
+      local file_list_str = await(M.run_diff_cmd {
+        diff_type = opts.diff_type,
+        upstream_branch = opts.upstream_branch,
+      })
+      file_list_str = if_nil(file_list_str, "")
+      local file_list_lines = vim.split(file_list_str, "\n", { trimempty = true, })
+
+      vim.bo[state.file_list_bufnr].modifiable = true
+      vim.api.nvim_buf_set_lines(state.file_list_bufnr, 0, -1, false, file_list_lines)
+      vim.bo[state.file_list_bufnr].modifiable = false
+
+      resolve(file_list_lines)
+    end)
+
+    local file_list_lines = await(set_file_list())
     vim.cmd "botright 10split"
     state.file_list_winnr = vim.api.nvim_get_current_win()
     vim.api.nvim_win_set_buf(state.file_list_winnr, state.file_list_bufnr)
     vim.wo[state.file_list_winnr].winbar = "Files"
-    vim.bo[state.file_list_bufnr].modifiable = false
     vim.bo[state.file_list_bufnr].filetype = "git-diff-view-file-list"
 
     vim.api.nvim_win_call(state.old_winnr, vim.cmd.diffthis)
@@ -745,13 +748,18 @@ M.open_diff_view = unwaited_async(
       vim.api.nvim_win_call(state.old_winnr, function()
         vim.cmd [[execute "normal! \<C-d>"]]
       end)
-    end, { desc = "Scroll down in the diff view", })
+    end, { desc = "Scroll down in the diff view", buffer = state.file_list_bufnr, })
 
     vim.keymap.set("n", "<Plug>GitDiffViewScrollUp", function()
       vim.api.nvim_win_call(state.old_winnr, function()
         vim.cmd [[execute "normal! \<C-u>"]]
       end)
-    end, { desc = "Scroll up in the diff view", })
+    end, { desc = "Scroll up in the diff view", buffer = state.file_list_bufnr, })
+
+    vim.keymap.set("n", "<Plug>GitDiffViewRefresh", unwaited_async(function()
+      await(set_file_list())
+      notify(vim.log.levels.INFO, "Refreshing file list")
+    end), { desc = "Scroll up in the diff view", buffer = state.file_list_bufnr, })
 
     vim.api.nvim_exec_autocmds("User", {
       pattern = "GitDiffViewOpen",
