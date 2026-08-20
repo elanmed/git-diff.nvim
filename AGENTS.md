@@ -23,8 +23,4 @@ A minimal Neovim plugin to view, navigate, and reset git hunks.
 
 ### Async pattern
 
-The plugin implements a lightweight coroutine-based async system to avoid blocking the UI during git operations:
-
-- `async(fn)` — wraps a function to run in a coroutine via `coroutine.create` + `coroutine.resume`
-- `await(promise)` — yields the current coroutine; `promise` is a `fun(resolve: fun())` called via `vim.schedule_wrap`
-- `Promise` is just `fun(resolve: Resolve)` — call `resolve()` to resume the awaiting coroutine
+The plugin implements a lightweight coroutine-based async system to avoid blocking the UI during git operations
