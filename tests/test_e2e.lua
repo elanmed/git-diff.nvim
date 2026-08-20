@@ -60,6 +60,17 @@ local function mock_read_index_file(content)
   ]], content))
 end
 
+local function mock_read_index_files(files)
+  child.lua([[
+    local files = ...
+    M.read_index_file = function(rel_filename)
+      return function(resolve)
+        resolve(files[rel_filename])
+      end
+    end
+  ]], { files, })
+end
+
 local function mock_run_diff_cmd(fn_name, content)
   child.lua(string.format([[
     M.%s = function()
@@ -174,6 +185,14 @@ end
 local function get_win_lines(win_id)
   local bufnr = child.api.nvim_win_get_buf(win_id)
   return child.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+end
+
+local function setup_diff_view_test(filename, worktree_lines, index_content)
+  set_named_buffer(filename, worktree_lines)
+  mock_read_index_files { [filename] = index_content, }
+  trigger_diff_update()
+  expect_hunks(child.api.nvim_get_current_buf())
+  mock_run_diff_cmd("run_diff_cmd_worktree_index", filename .. "\n")
 end
 
 
@@ -442,18 +461,10 @@ end
 T["diff view"] = new_set()
 
 T["diff view"]["opens a diff view tab"] = function()
-  set_named_buffer("test.txt", { "line1 changed", "line2", "line3", })
-
-  mock_read_index_file [[line1
+  setup_diff_view_test("test.txt", { "line1 changed", "line2", "line3", }, [[line1
 line2
 line3
-]]
-  trigger_diff_update()
-
-  local bufnr = child.api.nvim_get_current_buf()
-  expect_hunks(bufnr)
-
-  mock_run_diff_cmd("run_diff_cmd_worktree_index", "test.txt\n")
+]])
 
   child.lua [[M.open_diff_view({ diff_type = "worktree-index" })]]
 
@@ -472,15 +483,96 @@ line3
 end
 
 T["diff view"]["updates old/new content on file selection"] = function()
-  -- TODO: move cursor in file list and verify content updates.
+  set_named_buffer("a.txt", { "a1 changed", "a2", })
+  child.cmd "badd b.txt"
+  local b_bufnr = child.fn.bufnr "b.txt"
+  child.api.nvim_buf_set_lines(b_bufnr, 0, -1, true, { "b1 changed", "b2", })
+
+  mock_read_index_files {
+    ["a.txt"] = "a1\na2\n",
+    ["b.txt"] = "b1\nb2\n",
+  }
+  trigger_diff_update()
+  expect_hunks(child.api.nvim_get_current_buf())
+  mock_run_diff_cmd("run_diff_cmd_worktree_index", "a.txt\nb.txt\n")
+
+  child.lua [[M.open_diff_view({ diff_type = "worktree-index" })]]
+
+  expect_state(function()
+    return #child.api.nvim_list_tabpages() == 2 and #child.api.nvim_tabpage_list_wins(0) == 3
+  end)
+
+  child.type_keys "j"
+
+  expect_state(function()
+    local new_win = get_diff_view_windows "b.txt"
+    return new_win ~= nil
+  end)
+
+  local new_win, old_win = get_diff_view_windows "b.txt"
+  eq(get_win_lines(new_win), { "b1 changed", "b2", })
+  eq(get_win_lines(old_win), { "b1", "b2", })
 end
 
 T["diff view"]["toggles the diff view"] = function()
-  -- TODO: call M.toggle_diff_view() to open and close the view.
+  setup_diff_view_test("test.txt", { "line1 changed", "line2", "line3", }, [[line1
+line2
+line3
+]])
+
+  child.lua [[M.toggle_diff_view({ diff_type = "worktree-index" })]]
+  expect_state(function()
+    return #child.api.nvim_list_tabpages() == 2
+  end)
+  eq(#child.api.nvim_list_tabpages(), 2)
+
+  child.lua [[M.toggle_diff_view({ diff_type = "worktree-index" })]]
+  expect_state(function()
+    return #child.api.nvim_list_tabpages() == 1
+  end)
+  eq(#child.api.nvim_list_tabpages(), 1)
 end
 
-T["diff view"]["closes cleanly"] = function()
-  -- TODO: close the diff view and verify global state is cleared.
+T["diff view"]["closes cleanly"] = new_set {
+  parametrize = {
+    { "new", },
+    { "old", },
+    { "files", },
+  },
+}
+
+T["diff view"]["closes cleanly"]["closes when window closes"] = function(win_name)
+  setup_diff_view_test("test.txt", { "line1 changed", "line2", "line3", }, [[line1
+line2
+line3
+]])
+
+  child.lua [[M.open_diff_view({ diff_type = "worktree-index" })]]
+  expect_state(function()
+    return #child.api.nvim_list_tabpages() == 2
+  end)
+
+  local new_win, old_win, files_win = get_diff_view_windows "test.txt"
+  local win_to_close = ({ new = new_win, old = old_win, files = files_win, })[win_name]
+  child.api.nvim_win_close(win_to_close, false)
+  expect_state(function()
+    return #child.api.nvim_list_tabpages() == 1
+  end)
+  eq(#child.api.nvim_list_tabpages(), 1)
+
+  child.lua [[M.open_diff_view({ diff_type = "worktree-index" })]]
+  expect_state(function()
+    return #child.api.nvim_list_tabpages() == 2
+  end)
+  eq(#child.api.nvim_list_tabpages(), 2)
+end
+
+T["diff view"]["lists changed files"] = function()
+  -- TODO: verify the file list window contains expected file names.
+end
+
+T["diff view"]["shows old and new content"] = function()
+  -- TODO: verify old/new window contents for a modified file.
 end
 
 T["diff view"]["diff types"] = new_set {
