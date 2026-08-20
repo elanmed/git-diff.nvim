@@ -140,8 +140,8 @@ M.unpack_hunk = function(hunk)
   }
 end
 
---- @alias FileLocation "worktree" | "index" | "head" | "upstream"
---- @alias DiffType "worktree-index" | "worktree-head" | "worktree-upstream" | "index-head" | "index-upstream" | "head-upstream"
+--- @alias FileLocation "worktree" | "index" | "head" | "upstream" | "mergebase"
+--- @alias DiffType "worktree-index" | "worktree-head" | "worktree-upstream" | "worktree-mergebase" | "index-head" | "index-upstream" | "index-mergebase" | "head-upstream" | "head-mergebase"
 
 --- @type fun(cmd: string[], opts: vim.SystemOpts?): Promise<string?>
 local vim_system_stdout = async(
@@ -165,18 +165,16 @@ M.read_index_file = function(rel_filename)
 end
 
 --- @param rel_filename string
---- @return Promise<string?>
-M.read_head_file = function(rel_filename)
-  return vim_system_stdout { "git", "show", "HEAD:" .. rel_filename, }
-end
-
---- @param rel_filename string
 --- @param upstream_branch? string
 --- @return Promise<string?>
-M.read_upstream_file = function(rel_filename, upstream_branch)
+M.read_mergebase_file = async(function(resolve, rel_filename, upstream_branch)
   upstream_branch = if_nil(upstream_branch, "master")
-  return vim_system_stdout { "git", "show", "origin/" .. upstream_branch .. ":" .. rel_filename, }
-end
+  local merge_base = await(vim_system_stdout { "git", "merge-base", "HEAD", "origin/" .. upstream_branch, })
+  if merge_base == nil then return resolve(nil) end
+  merge_base = vim.trim(merge_base)
+  local contents = await(vim_system_stdout { "git", "show", merge_base .. ":" .. rel_filename, })
+  resolve(contents)
+end)
 
 --- @class ResolveFileContentsParams
 --- @field file_location FileLocation
@@ -201,26 +199,18 @@ local resolve_file_contents = async(
     elseif opts.file_location == "index" then
       file_contents = await(M.read_index_file(opts.rel_filename))
     elseif opts.file_location == "head" then
-      file_contents = await(M.read_head_file(opts.rel_filename))
+      file_contents = await(vim_system_stdout { "git", "show", "HEAD:" .. opts.rel_filename, })
     elseif opts.file_location == "upstream" then
-      file_contents = await(M.read_upstream_file(opts.rel_filename, opts.upstream_branch))
+      local upstream_branch = if_nil(opts.upstream_branch, "master")
+      file_contents = await(vim_system_stdout { "git", "show", "origin/" .. upstream_branch .. ":" .. opts.rel_filename, })
+    elseif opts.file_location == "mergebase" then
+      file_contents = await(M.read_mergebase_file(opts.rel_filename, opts.upstream_branch))
     end
 
     if file_contents == nil then return resolve(nil) end
     resolve(file_contents:gsub("\n$", "") .. "\n")
   end
 )
-
-
---- @class ResolveDiffTypeOpts
---- @field old_location FileLocation
---- @field new_location FileLocation
-
---- @param opts ResolveDiffTypeOpts
---- @return DiffType
-local get_diff_type_from_file_locations = function(opts)
-  return opts.new_location .. "-" .. opts.old_location
-end
 
 --- @param diff_type DiffType
 --- @return FileLocation old_location
@@ -238,35 +228,33 @@ M.run_diff_cmd_worktree_index = function()
   return vim_system_stdout { "git", "diff", "--name-only", }
 end
 
+--- @param upstream_branch? string
 --- @return Promise<string?>
-M.run_diff_cmd_worktree_head = function()
-  return vim_system_stdout { "git", "diff", "--name-only", "HEAD", }
-end
+M.run_diff_cmd_worktree_mergebase = async(function(resolve, upstream_branch)
+  upstream_branch = if_nil(upstream_branch, "master")
+  local merge_base = await(vim_system_stdout { "git", "merge-base", "HEAD", "origin/" .. upstream_branch, })
+  if merge_base == nil then return resolve(nil) end
+  merge_base = vim.trim(merge_base)
+  local file_list = await(vim_system_stdout { "git", "diff", "--name-only", merge_base, })
+  resolve(file_list)
+end)
 
 --- @param upstream_branch? string
 --- @return Promise<string?>
-M.run_diff_cmd_worktree_upstream = function(upstream_branch)
+M.run_diff_cmd_index_mergebase = async(function(resolve, upstream_branch)
   upstream_branch = if_nil(upstream_branch, "master")
-  return vim_system_stdout { "git", "diff", "--name-only", "origin/" .. upstream_branch, }
-end
-
---- @return Promise<string?>
-M.run_diff_cmd_index_head = function()
-  return vim_system_stdout { "git", "diff", "--name-only", "--cached", }
-end
-
---- @param upstream_branch? string
---- @return Promise<string?>
-M.run_diff_cmd_index_upstream = function(upstream_branch)
-  upstream_branch = if_nil(upstream_branch, "master")
-  return vim_system_stdout { "git", "diff", "--name-only", "--cached", "origin/" .. upstream_branch, }
-end
+  local merge_base = await(vim_system_stdout { "git", "merge-base", "HEAD", "origin/" .. upstream_branch, })
+  if merge_base == nil then return resolve(nil) end
+  merge_base = vim.trim(merge_base)
+  local file_list = await(vim_system_stdout { "git", "diff", "--name-only", "--cached", merge_base, })
+  resolve(file_list)
+end)
 
 --- @param upstream_branch? string
 --- @return Promise<string?>
-M.run_diff_cmd_head_upstream = function(upstream_branch)
+M.run_diff_cmd_head_mergebase = function(upstream_branch)
   upstream_branch = if_nil(upstream_branch, "master")
-  return vim_system_stdout { "git", "diff", "--name-only", "HEAD", "origin/" .. upstream_branch, }
+  return vim_system_stdout { "git", "diff", "--name-only", "origin/" .. upstream_branch .. "...HEAD", }
 end
 
 --- @class RunDiffCmdParams
@@ -276,18 +264,26 @@ end
 --- @param opts RunDiffCmdParams
 --- @return Promise<string?>
 M.run_diff_cmd = function(opts)
+  local upstream_branch = if_nil(opts.upstream_branch, "master")
+
   if opts.diff_type == "worktree-index" then
     return M.run_diff_cmd_worktree_index()
   elseif opts.diff_type == "worktree-head" then
-    return M.run_diff_cmd_worktree_head()
+    return vim_system_stdout { "git", "diff", "--name-only", "HEAD", }
   elseif opts.diff_type == "worktree-upstream" then
-    return M.run_diff_cmd_worktree_upstream(opts.upstream_branch)
+    return vim_system_stdout { "git", "diff", "--name-only", "origin/" .. upstream_branch, }
+  elseif opts.diff_type == "worktree-mergebase" then
+    return M.run_diff_cmd_worktree_mergebase(opts.upstream_branch)
   elseif opts.diff_type == "index-head" then
-    return M.run_diff_cmd_index_head()
+    return vim_system_stdout { "git", "diff", "--name-only", "--cached", }
   elseif opts.diff_type == "index-upstream" then
-    return M.run_diff_cmd_index_upstream(opts.upstream_branch)
+    return vim_system_stdout { "git", "diff", "--name-only", "--cached", "origin/" .. upstream_branch, }
+  elseif opts.diff_type == "index-mergebase" then
+    return M.run_diff_cmd_index_mergebase(opts.upstream_branch)
   elseif opts.diff_type == "head-upstream" then
-    return M.run_diff_cmd_head_upstream(opts.upstream_branch)
+    return vim_system_stdout { "git", "diff", "--name-only", "HEAD", "origin/" .. upstream_branch, }
+  elseif opts.diff_type == "head-mergebase" then
+    return M.run_diff_cmd_head_mergebase(opts.upstream_branch)
   end
 end
 
@@ -618,7 +614,12 @@ local function should_use_real_filename_bufnr(opts)
   local filename_bufnr = vim.fn.bufnr(opts.rel_filename)
   if filename_bufnr == -1 then return false end
 
-  return vim.list_contains({ "worktree-index", "worktree-head", "worktree-upstream", }, opts.diff_type)
+  return vim.list_contains({
+    "worktree-index",
+    "worktree-head",
+    "worktree-upstream",
+    "worktree-mergebase",
+  }, opts.diff_type)
 end
 
 --- @class UpdateDiffViewParams
