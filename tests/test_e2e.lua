@@ -195,7 +195,6 @@ local function setup_diff_view_test(filename, worktree_lines, index_content)
   mock_run_diff_cmd("run_diff_cmd_worktree_index", filename .. "\n")
 end
 
-
 local T = new_set {
   hooks = {
     pre_case = function()
@@ -565,37 +564,6 @@ line3
     return #child.api.nvim_list_tabpages() == 2
   end)
   eq(#child.api.nvim_list_tabpages(), 2)
-end
-
-T["diff view"]["lists changed files"] = function()
-  -- TODO: verify the file list window contains expected file names.
-end
-
-T["diff view"]["shows old and new content"] = function()
-  -- TODO: verify old/new window contents for a modified file.
-end
-
-T["diff view"]["diff types"] = new_set {
-  parametrize = {
-    { "worktree-index", },
-    { "worktree-head", },
-    { "worktree-upstream", },
-    { "index-head", },
-    { "index-upstream", },
-    { "head-upstream", },
-  },
-}
-
-T["diff view"]["diff types"]["opens for diff type"] = function(diff_type)
-  -- TODO: open diff view for `diff_type` and verify it loads the file list.
-end
-
-T["diff view"]["diff types"]["shows old location content"] = function(diff_type)
-  -- TODO: open diff view for `diff_type` and verify old buffer content.
-end
-
-T["diff view"]["diff types"]["shows new location content"] = function(diff_type)
-  -- TODO: open diff view for `diff_type` and verify new buffer content.
 end
 
 return T
