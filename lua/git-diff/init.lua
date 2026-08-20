@@ -233,22 +233,61 @@ end
 --- @field diff_type DiffType
 --- @field upstream_branch? string
 
---- @param opts ResolveDiffCmdOpts
-local resolve_diff_cmd = function(opts)
-  local upstream_branch = if_nil(opts.upstream_branch, "master")
+--- @return Promise<string?>
+M.run_diff_cmd_worktree_index = function()
+  return vim_system_stdout { "git", "diff", "--name-only", }
+end
 
+--- @return Promise<string?>
+M.run_diff_cmd_worktree_head = function()
+  return vim_system_stdout { "git", "diff", "--name-only", "HEAD", }
+end
+
+--- @param upstream_branch? string
+--- @return Promise<string?>
+M.run_diff_cmd_worktree_upstream = function(upstream_branch)
+  upstream_branch = if_nil(upstream_branch, "master")
+  return vim_system_stdout { "git", "diff", "--name-only", "origin/" .. upstream_branch, }
+end
+
+--- @return Promise<string?>
+M.run_diff_cmd_index_head = function()
+  return vim_system_stdout { "git", "diff", "--name-only", "--cached", }
+end
+
+--- @param upstream_branch? string
+--- @return Promise<string?>
+M.run_diff_cmd_index_upstream = function(upstream_branch)
+  upstream_branch = if_nil(upstream_branch, "master")
+  return vim_system_stdout { "git", "diff", "--name-only", "--cached", "origin/" .. upstream_branch, }
+end
+
+--- @param upstream_branch? string
+--- @return Promise<string?>
+M.run_diff_cmd_head_upstream = function(upstream_branch)
+  upstream_branch = if_nil(upstream_branch, "master")
+  return vim_system_stdout { "git", "diff", "--name-only", "HEAD", "origin/" .. upstream_branch, }
+end
+
+--- @class RunDiffCmdParams
+--- @field diff_type DiffType
+--- @field upstream_branch? string
+
+--- @param opts RunDiffCmdParams
+--- @return Promise<string?>
+M.run_diff_cmd = function(opts)
   if opts.diff_type == "worktree-index" then
-    return { "git", "diff", "--name-only", }
+    return M.run_diff_cmd_worktree_index()
   elseif opts.diff_type == "worktree-head" then
-    return { "git", "diff", "--name-only", "HEAD", }
+    return M.run_diff_cmd_worktree_head()
   elseif opts.diff_type == "worktree-upstream" then
-    return { "git", "diff", "--name-only", "origin/" .. upstream_branch, }
+    return M.run_diff_cmd_worktree_upstream(opts.upstream_branch)
   elseif opts.diff_type == "index-head" then
-    return { "git", "diff", "--name-only", "--cached", }
+    return M.run_diff_cmd_index_head()
   elseif opts.diff_type == "index-upstream" then
-    return { "git", "diff", "--name-only", "--cached", "origin/" .. upstream_branch, }
+    return M.run_diff_cmd_index_upstream(opts.upstream_branch)
   elseif opts.diff_type == "head-upstream" then
-    return { "git", "diff", "--name-only", "HEAD", "origin/" .. upstream_branch, }
+    return M.run_diff_cmd_head_upstream(opts.upstream_branch)
   end
 end
 
@@ -657,11 +696,10 @@ M.open_diff_view = unwaited_async(
     })
     vim.wo[state.old_winnr].winbar = "Old"
 
-    local diff_cmd = resolve_diff_cmd {
+    local file_list_str = await(M.run_diff_cmd {
       diff_type = opts.diff_type,
       upstream_branch = opts.upstream_branch,
-    }
-    local file_list_str = await(vim_system_stdout(diff_cmd))
+    })
     file_list_str = if_nil(file_list_str, "")
     local file_list_lines = vim.split(file_list_str, "\n", { trimempty = true, })
 
