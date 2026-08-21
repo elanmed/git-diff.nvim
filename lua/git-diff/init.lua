@@ -612,6 +612,7 @@ local initial_state = {
 }
 
 local state = vim.deepcopy(initial_state)
+local iter = 0
 
 --- @class UpdateDiffViewParams
 --- @field diff_type DiffType
@@ -622,8 +623,8 @@ local state = vim.deepcopy(initial_state)
 local update_diff_view = unwaited_async(
 --- @param opts UpdateDiffViewParams
   function(_, opts)
-    vim.api.nvim_win_call(state.old_winnr, vim.cmd.diffoff)
-    vim.api.nvim_win_call(state.new_winnr, vim.cmd.diffoff)
+    iter = iter + 1
+    local curr_iter = iter
 
     local new_file_location, old_file_location = get_file_locations_from_diff_type(opts.diff_type)
 
@@ -635,27 +636,43 @@ local update_diff_view = unwaited_async(
       "worktree-mergebase",
     }, opts.diff_type)
 
-    if use_real_filename_bufnr then
-      vim.api.nvim_win_set_buf(state.new_winnr, filename_bufnr)
-    else
-      vim.api.nvim_win_set_buf(state.new_winnr, state.new_bufnr)
+    local new_lines = nil
+    if not use_real_filename_bufnr then
       local new_str = await(resolve_file_contents {
         file_location = new_file_location,
         rel_filename = opts.rel_filename,
         upstream_branch = opts.upstream_branch,
       })
+      if curr_iter ~= iter then return end
+
       new_str = if_nil(new_str, "Could not open " .. opts.rel_filename .. " from " .. new_file_location)
-      local new_lines = vim.split(new_str, "\n", { trimempty = true, })
-      vim.api.nvim_buf_set_lines(state.new_bufnr, 0, -1, false, new_lines)
+      new_lines = vim.split(new_str, "\n", { trimempty = true, })
     end
+
+    if curr_iter ~= iter then return end
+
 
     local old_str = await(resolve_file_contents {
       file_location = old_file_location,
       rel_filename = opts.rel_filename,
       upstream_branch = opts.upstream_branch,
     })
+    if curr_iter ~= iter then return end
+
     old_str = if_nil(old_str, "Could not open " .. opts.rel_filename .. " from " .. old_file_location)
     local old_lines = vim.split(old_str, "\n", { trimempty = true, })
+
+    vim.api.nvim_win_call(state.old_winnr, vim.cmd.diffoff)
+    vim.api.nvim_win_call(state.new_winnr, vim.cmd.diffoff)
+
+
+    if use_real_filename_bufnr then
+      vim.api.nvim_win_set_buf(state.new_winnr, filename_bufnr)
+    else
+      vim.api.nvim_win_set_buf(state.new_winnr, state.new_bufnr)
+      assert(new_lines ~= nil)
+      vim.api.nvim_buf_set_lines(state.new_bufnr, 0, -1, false, new_lines)
+    end
     vim.api.nvim_buf_set_lines(state.old_bufnr, 0, -1, false, old_lines)
 
     vim.api.nvim_win_call(state.old_winnr, vim.cmd.diffthis)
@@ -722,9 +739,6 @@ M.open_diff_view = unwaited_async(
     if #file_list_lines > 0 then
       update_diff_view { diff_type = opts.diff_type, rel_filename = file_list_lines[1], upstream_branch = state.upstream_branch, }
     end
-
-    vim.api.nvim_win_call(state.old_winnr, vim.cmd.diffthis)
-    vim.api.nvim_win_call(state.new_winnr, vim.cmd.diffthis)
 
     vim.api.nvim_create_autocmd({ "CursorMoved", }, {
       group = vim.api.nvim_create_augroup("GitDiffViewFileListCursorMove", { clear = true, }),
