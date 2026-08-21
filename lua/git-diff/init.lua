@@ -622,6 +622,9 @@ local state = vim.deepcopy(initial_state)
 local update_diff_view = unwaited_async(
 --- @param opts UpdateDiffViewParams
   function(_, opts)
+    vim.api.nvim_win_call(state.old_winnr, vim.cmd.diffoff)
+    vim.api.nvim_win_call(state.new_winnr, vim.cmd.diffoff)
+
     local new_file_location, old_file_location = get_file_locations_from_diff_type(opts.diff_type)
 
     local filename_bufnr = vim.fn.bufnr(opts.rel_filename, 1)
@@ -631,7 +634,6 @@ local update_diff_view = unwaited_async(
       "worktree-upstream",
       "worktree-mergebase",
     }, opts.diff_type)
-
 
     if use_real_filename_bufnr then
       vim.api.nvim_win_set_buf(state.new_winnr, filename_bufnr)
@@ -656,7 +658,8 @@ local update_diff_view = unwaited_async(
     local old_lines = vim.split(old_str, "\n", { trimempty = true, })
     vim.api.nvim_buf_set_lines(state.old_bufnr, 0, -1, false, old_lines)
 
-    vim.cmd.diffupdate()
+    vim.api.nvim_win_call(state.old_winnr, vim.cmd.diffthis)
+    vim.api.nvim_win_call(state.new_winnr, vim.cmd.diffthis)
   end
 )
 
