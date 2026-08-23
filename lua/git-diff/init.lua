@@ -4,46 +4,8 @@ local M = {}
 -- Async helpers
 -- ====================
 
-local function safe_resume(...)
-  local ok, err = coroutine.resume(...)
-  if not ok then error(err) end
-end
-
---- @generic T
---- @param fn fun(resolve: Resolve<T>, ...: any): nil
---- @return fun(...: any): Promise<T>
-local async = function(fn)
-  return function(...)
-    local args = { ..., }
-    return function(resolve)
-      local thread = coroutine.create(fn)
-      safe_resume(thread, resolve, unpack(args))
-    end
-  end
-end
-
---- @alias Resolve<T> fun(value?: T): nil
---- @alias Promise<T> fun(resolve: Resolve<T>): nil
-
---- @param fn fun(resolve: Resolve<any>, ...: any): nil
-local unwaited_async = function(fn)
-  return function(...)
-    local promise = async(fn)(...)
-    promise(function() end)
-  end
-end
-
---- @generic T
---- @param promise Promise<T>
---- @return T
-local await = function(promise)
-  local thread = coroutine.running()
-  assert(thread ~= nil, "`await` can only be called in a coroutine")
-  local scheduled_promise = vim.schedule_wrap(promise)
-  local resolve = vim.schedule_wrap(function(...) safe_resume(thread, ...) end)
-  scheduled_promise(resolve)
-  return coroutine.yield()
-end
+local a = require "git-diff.async"
+local await = a.await
 
 -- ====================
 -- Misc utils
@@ -152,19 +114,17 @@ end
 --- @alias DiffType "worktree-index" | "worktree-head" | "worktree-upstream" | "worktree-mergebase" | "index-head" | "index-upstream" | "index-mergebase" | "head-upstream" | "head-mergebase"
 
 --- @type fun(cmd: string[], opts: vim.SystemOpts?): Promise<string?>
-local vim_system_stdout = async(
---- @param cmd string[]
---- @param opts vim.SystemOpts?
-  function(resolve, cmd, opts)
-    --- @type vim.SystemCompleted
-    local out = await(function(inner_resolve) vim.system(cmd, opts, inner_resolve) end)
-    if out.code ~= 0 then
-      return resolve(nil)
-    end
-
-    return resolve(out.stdout)
+local vim_system_stdout = a.make_async(function(cmd, opts)
+  --- @type vim.SystemCompleted
+  local out = await(a.from_executor(function(resolve)
+    vim.system(cmd, opts, resolve)
+  end))
+  if out.code ~= 0 then
+    return nil
   end
-)
+
+  return out.stdout
+end)
 
 --- @param rel_filename string
 --- @return Promise<string?>
@@ -175,13 +135,12 @@ end
 --- @param rel_filename string
 --- @param upstream_branch? string
 --- @return Promise<string?>
-M.read_mergebase_file = async(function(resolve, rel_filename, upstream_branch)
+M.read_mergebase_file = a.make_async(function(rel_filename, upstream_branch)
   upstream_branch = if_nil(upstream_branch, "master")
   local merge_base = await(vim_system_stdout { "git", "merge-base", "HEAD", "origin/" .. upstream_branch, })
-  if merge_base == nil then return resolve(nil) end
+  if merge_base == nil then return nil end
   merge_base = vim.trim(merge_base)
-  local contents = await(vim_system_stdout { "git", "show", merge_base .. ":" .. rel_filename, })
-  resolve(contents)
+  return await(vim_system_stdout { "git", "show", merge_base .. ":" .. rel_filename, })
 end)
 
 --- @class ResolveFileContentsParams
@@ -191,34 +150,31 @@ end)
 --- @field file_bufnr? number
 
 --- @type fun(opts: ResolveFileContentsParams): Promise<string?>
-local resolve_file_contents = async(
---- @param opts ResolveFileContentsParams
-  function(resolve, opts)
-    local file_contents --- @type string?
+local resolve_file_contents = a.make_async(function(opts)
+  local file_contents --- @type string?
 
-    if opts.file_location == "worktree" then
-      if opts.file_bufnr == nil then
-        local file_lines = M.readfile(opts.rel_filename)
-        file_contents = table.concat(file_lines, "\n")
-      else
-        local buf_lines = vim.api.nvim_buf_get_lines(opts.file_bufnr, 0, -1, false)
-        file_contents = table.concat(buf_lines, "\n")
-      end
-    elseif opts.file_location == "index" then
-      file_contents = await(M.read_index_file(opts.rel_filename))
-    elseif opts.file_location == "head" then
-      file_contents = await(vim_system_stdout { "git", "show", "HEAD:" .. opts.rel_filename, })
-    elseif opts.file_location == "upstream" then
-      local upstream_branch = if_nil(opts.upstream_branch, "master")
-      file_contents = await(vim_system_stdout { "git", "show", "origin/" .. upstream_branch .. ":" .. opts.rel_filename, })
-    elseif opts.file_location == "mergebase" then
-      file_contents = await(M.read_mergebase_file(opts.rel_filename, opts.upstream_branch))
+  if opts.file_location == "worktree" then
+    if opts.file_bufnr == nil then
+      local file_lines = M.readfile(opts.rel_filename)
+      file_contents = table.concat(file_lines, "\n")
+    else
+      local buf_lines = vim.api.nvim_buf_get_lines(opts.file_bufnr, 0, -1, false)
+      file_contents = table.concat(buf_lines, "\n")
     end
-
-    if file_contents == nil then return resolve(nil) end
-    resolve(file_contents:gsub("\n$", "") .. "\n")
+  elseif opts.file_location == "index" then
+    file_contents = await(M.read_index_file(opts.rel_filename))
+  elseif opts.file_location == "head" then
+    file_contents = await(vim_system_stdout { "git", "show", "HEAD:" .. opts.rel_filename, })
+  elseif opts.file_location == "upstream" then
+    local upstream_branch = if_nil(opts.upstream_branch, "master")
+    file_contents = await(vim_system_stdout { "git", "show", "origin/" .. upstream_branch .. ":" .. opts.rel_filename, })
+  elseif opts.file_location == "mergebase" then
+    file_contents = await(M.read_mergebase_file(opts.rel_filename, opts.upstream_branch))
   end
-)
+
+  if file_contents == nil then return nil end
+  return file_contents:gsub("\n$", "") .. "\n"
+end)
 
 --- @param diff_type DiffType
 --- @return FileLocation old_location
@@ -238,24 +194,22 @@ end
 
 --- @param upstream_branch? string
 --- @return Promise<string?>
-M.run_diff_cmd_worktree_mergebase = async(function(resolve, upstream_branch)
+M.run_diff_cmd_worktree_mergebase = a.make_async(function(upstream_branch)
   upstream_branch = if_nil(upstream_branch, "master")
   local merge_base = await(vim_system_stdout { "git", "merge-base", "HEAD", "origin/" .. upstream_branch, })
-  if merge_base == nil then return resolve(nil) end
+  if merge_base == nil then return nil end
   merge_base = vim.trim(merge_base)
-  local file_list = await(vim_system_stdout { "git", "diff", "--name-only", merge_base, })
-  resolve(file_list)
+  return await(vim_system_stdout { "git", "diff", "--name-only", merge_base, })
 end)
 
 --- @param upstream_branch? string
 --- @return Promise<string?>
-M.run_diff_cmd_index_mergebase = async(function(resolve, upstream_branch)
+M.run_diff_cmd_index_mergebase = a.make_async(function(upstream_branch)
   upstream_branch = if_nil(upstream_branch, "master")
   local merge_base = await(vim_system_stdout { "git", "merge-base", "HEAD", "origin/" .. upstream_branch, })
-  if merge_base == nil then return resolve(nil) end
+  if merge_base == nil then return nil end
   merge_base = vim.trim(merge_base)
-  local file_list = await(vim_system_stdout { "git", "diff", "--name-only", "--cached", merge_base, })
-  resolve(file_list)
+  return await(vim_system_stdout { "git", "diff", "--name-only", "--cached", merge_base, })
 end)
 
 --- @param upstream_branch? string
@@ -303,27 +257,24 @@ end
 --- @field file_bufnr? number
 
 --- @type fun(opts: GenerateDiffParams): Promise<DiffHunk[]?>
-local generate_diff = async(
---- @param opts GenerateDiffParams
-  function(resolve, opts)
-    local old_str = await(resolve_file_contents {
-      file_location = opts.old_file_location,
-      rel_filename = opts.rel_filename,
-      upstream_branch = opts.upstream_branch,
-      file_bufnr = opts.file_bufnr,
-    })
-    if old_str == nil then return resolve(nil) end
-    local new_str = await(resolve_file_contents {
-      file_location = opts.new_file_location,
-      rel_filename = opts.rel_filename,
-      upstream_branch = opts.upstream_branch,
-      file_bufnr = opts.file_bufnr,
-    })
-    if new_str == nil then return resolve(nil) end
+local generate_diff = a.make_async(function(opts)
+  local old_str = await(resolve_file_contents {
+    file_location = opts.old_file_location,
+    rel_filename = opts.rel_filename,
+    upstream_branch = opts.upstream_branch,
+    file_bufnr = opts.file_bufnr,
+  })
+  if old_str == nil then return nil end
+  local new_str = await(resolve_file_contents {
+    file_location = opts.new_file_location,
+    rel_filename = opts.rel_filename,
+    upstream_branch = opts.upstream_branch,
+    file_bufnr = opts.file_bufnr,
+  })
+  if new_str == nil then return nil end
 
-    resolve(vim.text.diff(old_str, new_str, { result_type = "indices", }))
-  end
-)
+  return vim.text.diff(old_str, new_str, { result_type = "indices", })
+end)
 
 --- @class DiffState
 --- @field indices DiffHunk[]
@@ -335,27 +286,23 @@ local buffer_state = {}
 local ns_id = vim.api.nvim_create_namespace "GitDiff"
 
 --- @type fun(bufnr: number): Promise
-local update_state_for_buf = async(
---- @param bufnr number
-  function(resolve, bufnr)
-    if not vim.api.nvim_buf_is_valid(bufnr) then return resolve() end
-    local bufname = vim.fs.relpath(vim.fn.getcwd(), vim.api.nvim_buf_get_name(bufnr))
-    if bufname == nil then return resolve() end
+local update_state_for_buf = a.make_async(function(bufnr)
+  if not vim.api.nvim_buf_is_valid(bufnr) then return end
+  local bufname = vim.fs.relpath(vim.fn.getcwd(), vim.api.nvim_buf_get_name(bufnr))
+  if bufname == nil then return end
 
-    local indices = await(generate_diff { rel_filename = bufname, old_file_location = "index", new_file_location = "worktree", file_bufnr = bufnr, })
-    if indices == nil then return resolve() end
+  local indices = await(generate_diff { rel_filename = bufname, old_file_location = "index", new_file_location = "worktree", file_bufnr = bufnr, })
+  if indices == nil then return end
 
-    local index_str = await(resolve_file_contents { file_location = "index", rel_filename = bufname, })
-    if index_str == nil then return resolve() end
-    local index_lines = vim.split(index_str, "\n", { trimempty = true, })
+  local index_str = await(resolve_file_contents { file_location = "index", rel_filename = bufname, })
+  if index_str == nil then return end
+  local index_lines = vim.split(index_str, "\n", { trimempty = true, })
 
-    buffer_state[bufnr] = {
-      indices = indices,
-      index_lines = index_lines,
-    }
-    resolve()
-  end
-)
+  buffer_state[bufnr] = {
+    indices = indices,
+    index_lines = index_lines,
+  }
+end)
 
 local update_signs = vim.schedule_wrap(function()
   local curr_bufnr = vim.api.nvim_get_current_buf()
@@ -489,7 +436,7 @@ local setup_global_autocmds = function()
     callback = function(event)
       if timer then vim.fn.timer_stop(timer) end
 
-      timer = vim.fn.timer_start(300, unwaited_async(function()
+      timer = vim.fn.timer_start(300, a.make_spawn(function()
         if event.buf ~= vim.api.nvim_get_current_buf() then return end
         await(update_state_for_buf(event.buf))
         update_signs()
@@ -499,7 +446,7 @@ local setup_global_autocmds = function()
 
   vim.api.nvim_create_autocmd({ "BufWinEnter", "BufEnter", "BufWritePost", }, {
     group = vim.api.nvim_create_augroup("GitDiffBufEvents", { clear = true, }),
-    callback = unwaited_async(function(_, event)
+    callback = a.make_spawn(function(event)
       if event.buf ~= vim.api.nvim_get_current_buf() then return end
       await(update_state_for_buf(event.buf))
       update_signs()
@@ -509,7 +456,7 @@ local setup_global_autocmds = function()
   vim.api.nvim_create_autocmd("User", {
     group = vim.api.nvim_create_augroup("GitDiffIndexEvents", { clear = true, }),
     pattern = { "GitIndexChanged", },
-    callback = unwaited_async(function()
+    callback = a.make_spawn(function()
       local bufs = {}
       for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
         if vim.bo[bufnr].buftype == "" and vim.api.nvim_buf_is_loaded(bufnr) then
@@ -533,7 +480,7 @@ local setup_global_autocmds = function()
 end
 
 --- @type fun():nil
-local setup_file_watcher = unwaited_async(function()
+local setup_file_watcher = a.make_spawn(function()
   local git_dir = await(vim_system_stdout { "git", "rev-parse", "--absolute-git-dir", })
   if git_dir == nil then return end
   git_dir = vim.trim(git_dir)
@@ -620,9 +567,8 @@ local iter = 0
 --- @field rel_filename string
 
 --- @type fun(opts: UpdateDiffViewParams): nil
-local update_diff_view = unwaited_async(
---- @param opts UpdateDiffViewParams
-  function(_, opts)
+local update_diff_view = a.make_spawn(
+  function(opts)
     iter = iter + 1
     local curr_iter = iter
 
@@ -685,9 +631,8 @@ local update_diff_view = unwaited_async(
 --- @field upstream_branch? string
 
 --- @type fun(opts: OpenDiffViewParams): nil
-M.open_diff_view = unwaited_async(
---- @param opts OpenDiffViewParams
-  function(_, opts)
+M.open_diff_view = a.make_spawn(
+  function(opts)
     if (state.tabnr ~= nil) then
       vim.api.nvim_set_current_tabpage(state.tabnr)
       return
@@ -714,7 +659,7 @@ M.open_diff_view = unwaited_async(
     state.file_list_bufnr = vim.api.nvim_create_buf(false, true)
 
     --- @type fun(): Promise<string>
-    local set_file_list = async(function(resolve)
+    local set_file_list = a.make_async(function()
       local file_list_str = await(M.run_diff_cmd {
         diff_type = opts.diff_type,
         upstream_branch = opts.upstream_branch,
@@ -726,7 +671,7 @@ M.open_diff_view = unwaited_async(
       vim.api.nvim_buf_set_lines(state.file_list_bufnr, 0, -1, false, file_list_lines)
       vim.bo[state.file_list_bufnr].modifiable = false
 
-      resolve(file_list_lines)
+      return file_list_lines
     end)
 
     local file_list_lines = await(set_file_list())
@@ -773,7 +718,7 @@ M.open_diff_view = unwaited_async(
       end)
     end, { desc = "Scroll up in the diff view", buffer = state.file_list_bufnr, })
 
-    vim.keymap.set("n", "<Plug>GitDiffViewRefresh", unwaited_async(function()
+    vim.keymap.set("n", "<Plug>GitDiffViewRefresh", a.make_spawn(function()
       await(set_file_list())
       notify(vim.log.levels.INFO, "Refreshing file list")
     end), { desc = "Scroll up in the diff view", buffer = state.file_list_bufnr, })
