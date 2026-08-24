@@ -548,7 +548,7 @@ line3
 
   child.lua [[M.open_diff_view({ diff_type = "worktree-index" })]]
   expect_state(function()
-    return #child.api.nvim_list_tabpages() == 2
+    return #child.api.nvim_list_tabpages() == 2 and #child.api.nvim_tabpage_list_wins(0) == 3
   end)
 
   local new_win, old_win, files_win = get_diff_view_windows "test.txt"
