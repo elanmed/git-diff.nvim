@@ -1,1 +1,1 @@
-require "git-diff".setup()
+require("git-diff").setup()

@@ -15,7 +15,7 @@ local await = a.await
 --- @param msg string
 --- @param ... any
 local notify = function(level, msg, ...)
-  msg = "[tree.nvim]: " .. msg
+  msg = "[git-diff.nvim]: " .. msg
   vim.notify(msg:format(...), level)
 end
 
@@ -129,7 +129,7 @@ end)
 --- @param rel_filename string
 --- @return Promise<string?>
 M.read_index_file = function(rel_filename)
-  return vim_system_stdout { "git", "show", ":" .. rel_filename, }
+  return vim_system_stdout { "git", "show", ":" .. rel_filename }
 end
 
 --- @param rel_filename string
@@ -137,10 +137,13 @@ end
 --- @return Promise<string?>
 M.read_mergebase_file = a.make_async(function(rel_filename, upstream_branch)
   upstream_branch = if_nil(upstream_branch, "master")
-  local merge_base = await(vim_system_stdout { "git", "merge-base", "HEAD", "origin/" .. upstream_branch, })
-  if merge_base == nil then return nil end
+  local merge_base =
+    await(vim_system_stdout { "git", "merge-base", "HEAD", "origin/" .. upstream_branch })
+  if merge_base == nil then
+    return nil
+  end
   merge_base = vim.trim(merge_base)
-  return await(vim_system_stdout { "git", "show", merge_base .. ":" .. rel_filename, })
+  return await(vim_system_stdout { "git", "show", merge_base .. ":" .. rel_filename })
 end)
 
 --- @class ResolveFileContentsParams
@@ -164,15 +167,19 @@ local resolve_file_contents = a.make_async(function(opts)
   elseif opts.file_location == "index" then
     file_contents = await(M.read_index_file(opts.rel_filename))
   elseif opts.file_location == "head" then
-    file_contents = await(vim_system_stdout { "git", "show", "HEAD:" .. opts.rel_filename, })
+    file_contents = await(vim_system_stdout { "git", "show", "HEAD:" .. opts.rel_filename })
   elseif opts.file_location == "upstream" then
     local upstream_branch = if_nil(opts.upstream_branch, "master")
-    file_contents = await(vim_system_stdout { "git", "show", "origin/" .. upstream_branch .. ":" .. opts.rel_filename, })
+    file_contents = await(
+      vim_system_stdout { "git", "show", "origin/" .. upstream_branch .. ":" .. opts.rel_filename }
+    )
   elseif opts.file_location == "mergebase" then
     file_contents = await(M.read_mergebase_file(opts.rel_filename, opts.upstream_branch))
   end
 
-  if file_contents == nil then return nil end
+  if file_contents == nil then
+    return nil
+  end
   return file_contents:gsub("\n$", "") .. "\n"
 end)
 
@@ -189,34 +196,40 @@ end
 
 --- @return Promise<string?>
 M.run_diff_cmd_worktree_index = function()
-  return vim_system_stdout { "git", "diff", "--name-only", }
+  return vim_system_stdout { "git", "diff", "--name-only" }
 end
 
 --- @param upstream_branch? string
 --- @return Promise<string?>
 M.run_diff_cmd_worktree_mergebase = a.make_async(function(upstream_branch)
   upstream_branch = if_nil(upstream_branch, "master")
-  local merge_base = await(vim_system_stdout { "git", "merge-base", "HEAD", "origin/" .. upstream_branch, })
-  if merge_base == nil then return nil end
+  local merge_base =
+    await(vim_system_stdout { "git", "merge-base", "HEAD", "origin/" .. upstream_branch })
+  if merge_base == nil then
+    return nil
+  end
   merge_base = vim.trim(merge_base)
-  return await(vim_system_stdout { "git", "diff", "--name-only", merge_base, })
+  return await(vim_system_stdout { "git", "diff", "--name-only", merge_base })
 end)
 
 --- @param upstream_branch? string
 --- @return Promise<string?>
 M.run_diff_cmd_index_mergebase = a.make_async(function(upstream_branch)
   upstream_branch = if_nil(upstream_branch, "master")
-  local merge_base = await(vim_system_stdout { "git", "merge-base", "HEAD", "origin/" .. upstream_branch, })
-  if merge_base == nil then return nil end
+  local merge_base =
+    await(vim_system_stdout { "git", "merge-base", "HEAD", "origin/" .. upstream_branch })
+  if merge_base == nil then
+    return nil
+  end
   merge_base = vim.trim(merge_base)
-  return await(vim_system_stdout { "git", "diff", "--name-only", "--cached", merge_base, })
+  return await(vim_system_stdout { "git", "diff", "--name-only", "--cached", merge_base })
 end)
 
 --- @param upstream_branch? string
 --- @return Promise<string?>
 M.run_diff_cmd_head_mergebase = function(upstream_branch)
   upstream_branch = if_nil(upstream_branch, "master")
-  return vim_system_stdout { "git", "diff", "--name-only", "origin/" .. upstream_branch .. "...HEAD", }
+  return vim_system_stdout { "git", "diff", "--name-only", "origin/" .. upstream_branch .. "...HEAD" }
 end
 
 --- @class RunDiffCmdParams
@@ -231,19 +244,25 @@ M.run_diff_cmd = function(opts)
   if opts.diff_type == "worktree-index" then
     return M.run_diff_cmd_worktree_index()
   elseif opts.diff_type == "worktree-head" then
-    return vim_system_stdout { "git", "diff", "--name-only", "HEAD", }
+    return vim_system_stdout { "git", "diff", "--name-only", "HEAD" }
   elseif opts.diff_type == "worktree-upstream" then
-    return vim_system_stdout { "git", "diff", "--name-only", "origin/" .. upstream_branch, }
+    return vim_system_stdout { "git", "diff", "--name-only", "origin/" .. upstream_branch }
   elseif opts.diff_type == "worktree-mergebase" then
     return M.run_diff_cmd_worktree_mergebase(opts.upstream_branch)
   elseif opts.diff_type == "index-head" then
-    return vim_system_stdout { "git", "diff", "--name-only", "--cached", }
+    return vim_system_stdout { "git", "diff", "--name-only", "--cached" }
   elseif opts.diff_type == "index-upstream" then
-    return vim_system_stdout { "git", "diff", "--name-only", "--cached", "origin/" .. upstream_branch, }
+    return vim_system_stdout {
+      "git",
+      "diff",
+      "--name-only",
+      "--cached",
+      "origin/" .. upstream_branch,
+    }
   elseif opts.diff_type == "index-mergebase" then
     return M.run_diff_cmd_index_mergebase(opts.upstream_branch)
   elseif opts.diff_type == "head-upstream" then
-    return vim_system_stdout { "git", "diff", "--name-only", "HEAD", "origin/" .. upstream_branch, }
+    return vim_system_stdout { "git", "diff", "--name-only", "HEAD", "origin/" .. upstream_branch }
   elseif opts.diff_type == "head-mergebase" then
     return M.run_diff_cmd_head_mergebase(opts.upstream_branch)
   end
@@ -264,16 +283,20 @@ local generate_diff = a.make_async(function(opts)
     upstream_branch = opts.upstream_branch,
     file_bufnr = opts.file_bufnr,
   })
-  if old_str == nil then return nil end
+  if old_str == nil then
+    return nil
+  end
   local new_str = await(resolve_file_contents {
     file_location = opts.new_file_location,
     rel_filename = opts.rel_filename,
     upstream_branch = opts.upstream_branch,
     file_bufnr = opts.file_bufnr,
   })
-  if new_str == nil then return nil end
+  if new_str == nil then
+    return nil
+  end
 
-  return vim.text.diff(old_str, new_str, { result_type = "indices", })
+  return vim.text.diff(old_str, new_str, { result_type = "indices" })
 end)
 
 --- @class DiffState
@@ -287,16 +310,29 @@ local ns_id = vim.api.nvim_create_namespace "GitDiff"
 
 --- @type fun(bufnr: number): Promise
 local update_state_for_buf = a.make_async(function(bufnr)
-  if not vim.api.nvim_buf_is_valid(bufnr) then return end
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return
+  end
   local bufname = vim.fs.relpath(vim.fn.getcwd(), vim.api.nvim_buf_get_name(bufnr))
-  if bufname == nil then return end
+  if bufname == nil then
+    return
+  end
 
-  local indices = await(generate_diff { rel_filename = bufname, old_file_location = "index", new_file_location = "worktree", file_bufnr = bufnr, })
-  if indices == nil then return end
+  local indices = await(generate_diff {
+    rel_filename = bufname,
+    old_file_location = "index",
+    new_file_location = "worktree",
+    file_bufnr = bufnr,
+  })
+  if indices == nil then
+    return
+  end
 
-  local index_str = await(resolve_file_contents { file_location = "index", rel_filename = bufname, })
-  if index_str == nil then return end
-  local index_lines = vim.split(index_str, "\n", { trimempty = true, })
+  local index_str = await(resolve_file_contents { file_location = "index", rel_filename = bufname })
+  if index_str == nil then
+    return
+  end
+  local index_lines = vim.split(index_str, "\n", { trimempty = true })
 
   buffer_state[bufnr] = {
     indices = indices,
@@ -317,15 +353,19 @@ local update_signs = vim.schedule_wrap(function()
     local hunk = M.unpack_hunk(raw_hunk)
 
     local hunk_hl_group = (function()
-      if hunk.is_deletion then return "DiffSignDelete" end
-      if hunk.is_insertion then return "DiffSignAdd" end
+      if hunk.is_deletion then
+        return "DiffSignDelete"
+      end
+      if hunk.is_insertion then
+        return "DiffSignAdd"
+      end
       return "DiffSignChange"
     end)()
 
     for row_1i = hunk.start_new_1i, math.max(hunk.end_new_1i_incl, hunk.start_new_1i) do
       local row_0i = row_1i - 1
       if row_0i >= 0 then
-        table.insert(rows_to_hl, { row_0i = row_0i, hl = hunk_hl_group, })
+        table.insert(rows_to_hl, { row_0i = row_0i, hl = hunk_hl_group })
       end
     end
   end
@@ -338,7 +378,6 @@ local update_signs = vim.schedule_wrap(function()
   end
 end)
 
-
 --- @param direction 'next' | 'prev'
 local function navigate_hunk(direction)
   local curr_bufnr = vim.api.nvim_get_current_buf()
@@ -349,7 +388,9 @@ local function navigate_hunk(direction)
   end
 
   local indices = (function()
-    if direction == "next" then return buf_state.indices end
+    if direction == "next" then
+      return buf_state.indices
+    end
     return tbl_reverse(buf_state.indices)
   end)()
 
@@ -378,16 +419,16 @@ local function navigate_hunk(direction)
   if next_hunk_row_1i == nil then
     if direction == "next" then
       local hunk = M.unpack_hunk(buf_state.indices[1])
-      vim.api.nvim_win_set_cursor(0, { hunk.start_new_1i, 0, })
+      vim.api.nvim_win_set_cursor(0, { hunk.start_new_1i, 0 })
       return notify(vim.log.levels.INFO, "Wrapping to the first hunk")
     else
       local hunk = M.unpack_hunk(buf_state.indices[#buf_state.indices])
-      vim.api.nvim_win_set_cursor(0, { hunk.start_new_1i, 0, })
+      vim.api.nvim_win_set_cursor(0, { hunk.start_new_1i, 0 })
       return notify(vim.log.levels.INFO, "Wrapping to the last hunk")
     end
   end
 
-  vim.api.nvim_win_set_cursor(0, { next_hunk_row_1i, 0, })
+  vim.api.nvim_win_set_cursor(0, { next_hunk_row_1i, 0 })
 end
 
 --- @class ResetHunkOpts
@@ -403,13 +444,11 @@ local function reset_hunk(opts)
 
     local hunk_overlaps_range = false
     if hunk.is_deletion then
-      hunk_overlaps_range =
-          hunk.start_new_1i >= opts.start_line_1i and
-          hunk.start_new_1i <= opts.end_line_1i_incl
+      hunk_overlaps_range = hunk.start_new_1i >= opts.start_line_1i
+        and hunk.start_new_1i <= opts.end_line_1i_incl
     else
-      hunk_overlaps_range =
-          hunk.end_new_1i_incl >= opts.start_line_1i and
-          hunk.start_new_1i <= opts.end_line_1i_incl
+      hunk_overlaps_range = hunk.end_new_1i_incl >= opts.start_line_1i
+        and hunk.start_new_1i <= opts.end_line_1i_incl
     end
 
     if hunk_overlaps_range then
@@ -418,44 +457,66 @@ local function reset_hunk(opts)
   end
 
   for _, hunk in ipairs(tbl_reverse(matching_hunks)) do
-    local head_chunk = vim.list_slice(opts.state.index_lines, hunk.start_old_1i, hunk.end_old_1i_incl)
+    local head_chunk =
+      vim.list_slice(opts.state.index_lines, hunk.start_old_1i, hunk.end_old_1i_incl)
 
     if hunk.is_deletion then
       local insert_after_0i = hunk.start_new_0i + 1
-      vim.api.nvim_buf_set_lines(opts.curr_bufnr, insert_after_0i, insert_after_0i, true, head_chunk)
+      vim.api.nvim_buf_set_lines(
+        opts.curr_bufnr,
+        insert_after_0i,
+        insert_after_0i,
+        true,
+        head_chunk
+      )
     else
-      vim.api.nvim_buf_set_lines(opts.curr_bufnr, hunk.start_new_0i, hunk.end_new_0i_excl, true, head_chunk)
+      vim.api.nvim_buf_set_lines(
+        opts.curr_bufnr,
+        hunk.start_new_0i,
+        hunk.end_new_0i_excl,
+        true,
+        head_chunk
+      )
     end
   end
 end
 
 local setup_global_autocmds = function()
   local timer = nil
-  vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", }, {
-    group = vim.api.nvim_create_augroup("GitDiffTextEvents", { clear = true, }),
+  vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
+    group = vim.api.nvim_create_augroup("GitDiffTextEvents", { clear = true }),
     callback = function(event)
-      if timer then vim.fn.timer_stop(timer) end
+      if timer then
+        vim.fn.timer_stop(timer)
+      end
 
-      timer = vim.fn.timer_start(300, a.make_spawn(function()
-        if event.buf ~= vim.api.nvim_get_current_buf() then return end
-        await(update_state_for_buf(event.buf))
-        update_signs()
-      end))
+      timer = vim.fn.timer_start(
+        300,
+        a.make_spawn(function()
+          if event.buf ~= vim.api.nvim_get_current_buf() then
+            return
+          end
+          await(update_state_for_buf(event.buf))
+          update_signs()
+        end)
+      )
     end,
   })
 
-  vim.api.nvim_create_autocmd({ "BufWinEnter", "BufEnter", "BufWritePost", }, {
-    group = vim.api.nvim_create_augroup("GitDiffBufEvents", { clear = true, }),
+  vim.api.nvim_create_autocmd({ "BufWinEnter", "BufEnter", "BufWritePost" }, {
+    group = vim.api.nvim_create_augroup("GitDiffBufEvents", { clear = true }),
     callback = a.make_spawn(function(event)
-      if event.buf ~= vim.api.nvim_get_current_buf() then return end
+      if event.buf ~= vim.api.nvim_get_current_buf() then
+        return
+      end
       await(update_state_for_buf(event.buf))
       update_signs()
     end),
   })
 
   vim.api.nvim_create_autocmd("User", {
-    group = vim.api.nvim_create_augroup("GitDiffIndexEvents", { clear = true, }),
-    pattern = { "GitIndexChanged", },
+    group = vim.api.nvim_create_augroup("GitDiffIndexEvents", { clear = true }),
+    pattern = { "GitIndexChanged" },
     callback = a.make_spawn(function()
       local bufs = {}
       for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
@@ -472,7 +533,7 @@ local setup_global_autocmds = function()
   })
 
   vim.api.nvim_create_autocmd("BufDelete", {
-    group = vim.api.nvim_create_augroup("GitDiffCleanup", { clear = true, }),
+    group = vim.api.nvim_create_augroup("GitDiffCleanup", { clear = true }),
     callback = function(event)
       buffer_state[event.buf] = nil
     end,
@@ -481,29 +542,35 @@ end
 
 --- @type fun():nil
 local setup_file_watcher = a.make_spawn(function()
-  local git_dir = await(vim_system_stdout { "git", "rev-parse", "--absolute-git-dir", })
-  if git_dir == nil then return end
+  local git_dir = await(vim_system_stdout { "git", "rev-parse", "--absolute-git-dir" })
+  if git_dir == nil then
+    return
+  end
   git_dir = vim.trim(git_dir)
 
   local index_watch = vim.uv.new_fs_event()
-  if index_watch == nil then return end
+  if index_watch == nil then
+    return
+  end
 
   index_watch:start(git_dir, {}, function(_, filename)
     vim.schedule(function()
       if filename == "index" then
-        vim.api.nvim_exec_autocmds("User", { pattern = "GitIndexChanged", })
+        vim.api.nvim_exec_autocmds("User", { pattern = "GitIndexChanged" })
       elseif filename == "HEAD" then
-        vim.api.nvim_exec_autocmds("User", { pattern = "GitHeadChanged", })
+        vim.api.nvim_exec_autocmds("User", { pattern = "GitHeadChanged" })
       end
     end)
   end)
 end)
 
 local setup_global_keymaps = function()
-  vim.keymap.set("n", "<Plug>GitDiffNextHunk", function() navigate_hunk "next" end,
-    { desc = "Navigate to the next hunk", })
-  vim.keymap.set("n", "<Plug>GitDiffPrevHunk", function() navigate_hunk "prev" end,
-    { desc = "Navigate to the prev hunk", })
+  vim.keymap.set("n", "<Plug>GitDiffNextHunk", function()
+    navigate_hunk "next"
+  end, { desc = "Navigate to the next hunk" })
+  vim.keymap.set("n", "<Plug>GitDiffPrevHunk", function()
+    navigate_hunk "prev"
+  end, { desc = "Navigate to the prev hunk" })
 
   vim.keymap.set("n", "<Plug>GitDiffResetHunk", function()
     local curr_bufnr = vim.api.nvim_get_current_buf()
@@ -513,8 +580,13 @@ local setup_global_keymaps = function()
     end
 
     local row_1i = vim.api.nvim_win_get_cursor(0)[1]
-    reset_hunk { state = buf_state, curr_bufnr = curr_bufnr, start_line_1i = row_1i, end_line_1i_incl = row_1i, }
-  end, { desc = "Reset the hunk on the current line", })
+    reset_hunk {
+      state = buf_state,
+      curr_bufnr = curr_bufnr,
+      start_line_1i = row_1i,
+      end_line_1i_incl = row_1i,
+    }
+  end, { desc = "Reset the hunk on the current line" })
 
   vim.keymap.set("v", "<Plug>GitDiffResetHunk", function()
     local curr_bufnr = vim.api.nvim_get_current_buf()
@@ -528,8 +600,13 @@ local setup_global_keymaps = function()
     local start_selection_1i = math.min(start_visual_1i, end_visual_1i)
     local end_selection_1i = math.max(start_visual_1i, end_visual_1i)
 
-    reset_hunk { state = buf_state, curr_bufnr = curr_bufnr, start_line_1i = start_selection_1i, end_line_1i_incl = end_selection_1i, }
-  end, { desc = "Reset the visually selected hunk", })
+    reset_hunk {
+      state = buf_state,
+      curr_bufnr = curr_bufnr,
+      start_line_1i = start_selection_1i,
+      end_line_1i_incl = end_selection_1i,
+    }
+  end, { desc = "Reset the visually selected hunk" })
 
   vim.keymap.set("n", "<Plug>GitDiffResetFile", function()
     local curr_bufnr = vim.api.nvim_get_current_buf()
@@ -544,9 +621,8 @@ local setup_global_keymaps = function()
       start_line_1i = 1,
       end_line_1i_incl = vim.api.nvim_buf_line_count(curr_bufnr),
     }
-  end, { desc = "Reset the entire file", })
+  end, { desc = "Reset the entire file" })
 end
-
 
 local initial_state = {
   new_winnr = nil,
@@ -567,175 +643,202 @@ local iter = 0
 --- @field rel_filename string
 
 --- @type fun(opts: UpdateDiffViewParams): nil
-local update_diff_view = a.make_spawn(
-  function(opts)
-    iter = iter + 1
-    local curr_iter = iter
+local update_diff_view = a.make_spawn(function(opts)
+  iter = iter + 1
+  local curr_iter = iter
 
-    local new_file_location, old_file_location = get_file_locations_from_diff_type(opts.diff_type)
+  local new_file_location, old_file_location = get_file_locations_from_diff_type(opts.diff_type)
 
-    local filename_bufnr = vim.fn.bufnr(opts.rel_filename, 1)
-    local use_real_filename_bufnr = vim.list_contains({
-      "worktree-index",
-      "worktree-head",
-      "worktree-upstream",
-      "worktree-mergebase",
-    }, opts.diff_type)
+  local filename_bufnr = vim.fn.bufnr(opts.rel_filename, 1)
+  local use_real_filename_bufnr = vim.list_contains({
+    "worktree-index",
+    "worktree-head",
+    "worktree-upstream",
+    "worktree-mergebase",
+  }, opts.diff_type)
 
-    local new_lines = nil
-    if not use_real_filename_bufnr then
-      local new_str = await(resolve_file_contents {
-        file_location = new_file_location,
-        rel_filename = opts.rel_filename,
-        upstream_branch = opts.upstream_branch,
-      })
-      if curr_iter ~= iter then return end
-
-      new_str = if_nil(new_str, "Could not open " .. opts.rel_filename .. " from " .. new_file_location)
-      new_lines = vim.split(new_str, "\n", { trimempty = true, })
-    end
-
-    if curr_iter ~= iter then return end
-
-
-    local old_str = await(resolve_file_contents {
-      file_location = old_file_location,
+  local new_lines = nil
+  if not use_real_filename_bufnr then
+    local new_str = await(resolve_file_contents {
+      file_location = new_file_location,
       rel_filename = opts.rel_filename,
       upstream_branch = opts.upstream_branch,
     })
-    if curr_iter ~= iter then return end
-
-    old_str = if_nil(old_str, "Could not open " .. opts.rel_filename .. " from " .. old_file_location)
-    local old_lines = vim.split(old_str, "\n", { trimempty = true, })
-
-    vim.api.nvim_win_call(state.old_winnr, vim.cmd.diffoff)
-    vim.api.nvim_win_call(state.new_winnr, vim.cmd.diffoff)
-
-
-    if use_real_filename_bufnr then
-      vim.api.nvim_win_set_buf(state.new_winnr, filename_bufnr)
-    else
-      vim.api.nvim_win_set_buf(state.new_winnr, state.new_bufnr)
-      assert(new_lines ~= nil)
-      vim.api.nvim_buf_set_lines(state.new_bufnr, 0, -1, false, new_lines)
+    if curr_iter ~= iter then
+      return
     end
-    vim.api.nvim_buf_set_lines(state.old_bufnr, 0, -1, false, old_lines)
 
-    vim.api.nvim_win_call(state.old_winnr, vim.cmd.diffthis)
-    vim.api.nvim_win_call(state.new_winnr, vim.cmd.diffthis)
+    new_str =
+      if_nil(new_str, "Could not open " .. opts.rel_filename .. " from " .. new_file_location)
+    new_lines = vim.split(new_str, "\n", { trimempty = true })
   end
-)
+
+  if curr_iter ~= iter then
+    return
+  end
+
+  local old_str = await(resolve_file_contents {
+    file_location = old_file_location,
+    rel_filename = opts.rel_filename,
+    upstream_branch = opts.upstream_branch,
+  })
+  if curr_iter ~= iter then
+    return
+  end
+
+  old_str = if_nil(old_str, "Could not open " .. opts.rel_filename .. " from " .. old_file_location)
+  local old_lines = vim.split(old_str, "\n", { trimempty = true })
+
+  vim.api.nvim_win_call(state.old_winnr, vim.cmd.diffoff)
+  vim.api.nvim_win_call(state.new_winnr, vim.cmd.diffoff)
+
+  if use_real_filename_bufnr then
+    vim.api.nvim_win_set_buf(state.new_winnr, filename_bufnr)
+  else
+    vim.api.nvim_win_set_buf(state.new_winnr, state.new_bufnr)
+    assert(new_lines ~= nil)
+    vim.api.nvim_buf_set_lines(state.new_bufnr, 0, -1, false, new_lines)
+  end
+  vim.api.nvim_buf_set_lines(state.old_bufnr, 0, -1, false, old_lines)
+
+  vim.api.nvim_win_call(state.old_winnr, vim.cmd.diffthis)
+  vim.api.nvim_win_call(state.new_winnr, vim.cmd.diffthis)
+end)
 
 --- @class OpenDiffViewParams
 --- @field diff_type DiffType
 --- @field upstream_branch? string
 
 --- @type fun(opts: OpenDiffViewParams): nil
-M.open_diff_view = a.make_spawn(
-  function(opts)
-    if (state.tabnr ~= nil) then
-      vim.api.nvim_set_current_tabpage(state.tabnr)
-      return
-    end
+M.open_diff_view = a.make_spawn(function(opts)
+  if state.tabnr ~= nil then
+    vim.api.nvim_set_current_tabpage(state.tabnr)
+    return
+  end
 
-    vim.cmd.tabnew()
-    state.tabnr = vim.api.nvim_get_current_tabpage()
+  vim.cmd.tabnew()
+  state.tabnr = vim.api.nvim_get_current_tabpage()
 
-    vim.t.git_diff_view_open = true
+  vim.t.git_diff_view_open = true
 
-    state.upstream_branch = opts.upstream_branch
-    state.new_bufnr = vim.api.nvim_create_buf(false, true)
-    state.new_winnr = vim.api.nvim_get_current_win()
-    vim.api.nvim_win_set_buf(state.new_winnr, state.new_bufnr)
-    vim.wo[state.new_winnr].winbar = "New"
+  state.upstream_branch = opts.upstream_branch
+  state.new_bufnr = vim.api.nvim_create_buf(false, true)
+  state.new_winnr = vim.api.nvim_get_current_win()
+  vim.api.nvim_win_set_buf(state.new_winnr, state.new_bufnr)
+  vim.wo[state.new_winnr].winbar = "New"
 
-    state.old_bufnr = vim.api.nvim_create_buf(false, true)
-    state.old_winnr = vim.api.nvim_open_win(state.old_bufnr, true, {
-      split = "left",
-      win = state.new_winnr,
+  state.old_bufnr = vim.api.nvim_create_buf(false, true)
+  state.old_winnr = vim.api.nvim_open_win(state.old_bufnr, true, {
+    split = "left",
+    win = state.new_winnr,
+  })
+  vim.wo[state.old_winnr].winbar = "Old"
+
+  state.file_list_bufnr = vim.api.nvim_create_buf(false, true)
+
+  --- @type fun(): Promise<string>
+  local set_file_list = a.make_async(function()
+    local file_list_str = await(M.run_diff_cmd {
+      diff_type = opts.diff_type,
+      upstream_branch = opts.upstream_branch,
     })
-    vim.wo[state.old_winnr].winbar = "Old"
+    file_list_str = if_nil(file_list_str, "")
+    local file_list_lines = vim.split(file_list_str, "\n", { trimempty = true })
 
-    state.file_list_bufnr = vim.api.nvim_create_buf(false, true)
+    vim.bo[state.file_list_bufnr].modifiable = true
+    vim.api.nvim_buf_set_lines(state.file_list_bufnr, 0, -1, false, file_list_lines)
+    vim.bo[state.file_list_bufnr].modifiable = false
 
-    --- @type fun(): Promise<string>
-    local set_file_list = a.make_async(function()
-      local file_list_str = await(M.run_diff_cmd {
+    return file_list_lines
+  end)
+
+  local file_list_lines = await(set_file_list())
+  vim.cmd "botright 10split"
+  state.file_list_winnr = vim.api.nvim_get_current_win()
+  vim.api.nvim_win_set_buf(state.file_list_winnr, state.file_list_bufnr)
+  vim.wo[state.file_list_winnr].winbar = "Files"
+  vim.bo[state.file_list_bufnr].filetype = "git-diff-view-file-list"
+
+  if #file_list_lines > 0 then
+    update_diff_view {
+      diff_type = opts.diff_type,
+      rel_filename = file_list_lines[1],
+      upstream_branch = state.upstream_branch,
+    }
+  end
+
+  vim.api.nvim_create_autocmd({ "CursorMoved" }, {
+    group = vim.api.nvim_create_augroup("GitDiffViewFileListCursorMove", { clear = true }),
+    buf = state.file_list_bufnr,
+    callback = function()
+      local rel_filename =
+        vim.api.nvim_win_call(state.file_list_winnr, vim.api.nvim_get_current_line)
+      if rel_filename == nil or rel_filename == "" then
+        return
+      end
+      update_diff_view {
         diff_type = opts.diff_type,
-        upstream_branch = opts.upstream_branch,
-      })
-      file_list_str = if_nil(file_list_str, "")
-      local file_list_lines = vim.split(file_list_str, "\n", { trimempty = true, })
+        rel_filename = rel_filename,
+        upstream_branch = state.upstream_branch,
+      }
+    end,
+  })
 
-      vim.bo[state.file_list_bufnr].modifiable = true
-      vim.api.nvim_buf_set_lines(state.file_list_bufnr, 0, -1, false, file_list_lines)
-      vim.bo[state.file_list_bufnr].modifiable = false
+  vim.api.nvim_create_autocmd("WinClosed", {
+    group = vim.api.nvim_create_augroup("GitDiffViewFileListWinClosed", { clear = true }),
+    pattern = {
+      tostring(state.new_winnr),
+      tostring(state.old_winnr),
+      tostring(state.file_list_winnr),
+    },
+    callback = function()
+      if vim.api.nvim_win_is_valid(state.new_winnr) then
+        vim.api.nvim_win_close(state.new_winnr, false)
+      end
+      if vim.api.nvim_win_is_valid(state.old_winnr) then
+        vim.api.nvim_win_close(state.old_winnr, false)
+      end
+      if vim.api.nvim_win_is_valid(state.file_list_winnr) then
+        vim.api.nvim_win_close(state.file_list_winnr, false)
+      end
+      state = vim.deepcopy(initial_state)
+    end,
+  })
 
-      return file_list_lines
+  vim.keymap.set("n", "<Plug>GitDiffViewScrollDown", function()
+    vim.api.nvim_win_call(state.old_winnr, function()
+      vim.cmd [[execute "normal! \<C-d>"]]
     end)
+  end, { desc = "Scroll down in the diff view", buffer = state.file_list_bufnr })
 
-    local file_list_lines = await(set_file_list())
-    vim.cmd "botright 10split"
-    state.file_list_winnr = vim.api.nvim_get_current_win()
-    vim.api.nvim_win_set_buf(state.file_list_winnr, state.file_list_bufnr)
-    vim.wo[state.file_list_winnr].winbar = "Files"
-    vim.bo[state.file_list_bufnr].filetype = "git-diff-view-file-list"
+  vim.keymap.set("n", "<Plug>GitDiffViewScrollUp", function()
+    vim.api.nvim_win_call(state.old_winnr, function()
+      vim.cmd [[execute "normal! \<C-u>"]]
+    end)
+  end, { desc = "Scroll up in the diff view", buffer = state.file_list_bufnr })
 
-    if #file_list_lines > 0 then
-      update_diff_view { diff_type = opts.diff_type, rel_filename = file_list_lines[1], upstream_branch = state.upstream_branch, }
-    end
-
-    vim.api.nvim_create_autocmd({ "CursorMoved", }, {
-      group = vim.api.nvim_create_augroup("GitDiffViewFileListCursorMove", { clear = true, }),
-      buf = state.file_list_bufnr,
-      callback = function()
-        local rel_filename = vim.api.nvim_win_call(state.file_list_winnr, vim.api.nvim_get_current_line)
-        if rel_filename == nil or rel_filename == "" then return end
-        update_diff_view { diff_type = opts.diff_type, rel_filename = rel_filename, upstream_branch = state.upstream_branch, }
-      end,
-    })
-
-    vim.api.nvim_create_autocmd("WinClosed", {
-      group = vim.api.nvim_create_augroup("GitDiffViewFileListWinClosed", { clear = true, }),
-      pattern = { tostring(state.new_winnr), tostring(state.old_winnr), tostring(state.file_list_winnr), },
-      callback = function()
-        if vim.api.nvim_win_is_valid(state.new_winnr) then vim.api.nvim_win_close(state.new_winnr, false) end
-        if vim.api.nvim_win_is_valid(state.old_winnr) then vim.api.nvim_win_close(state.old_winnr, false) end
-        if vim.api.nvim_win_is_valid(state.file_list_winnr) then vim.api.nvim_win_close(state.file_list_winnr, false) end
-        state = vim.deepcopy(initial_state)
-      end,
-    })
-
-    vim.keymap.set("n", "<Plug>GitDiffViewScrollDown", function()
-      vim.api.nvim_win_call(state.old_winnr, function()
-        vim.cmd [[execute "normal! \<C-d>"]]
-      end)
-    end, { desc = "Scroll down in the diff view", buffer = state.file_list_bufnr, })
-
-    vim.keymap.set("n", "<Plug>GitDiffViewScrollUp", function()
-      vim.api.nvim_win_call(state.old_winnr, function()
-        vim.cmd [[execute "normal! \<C-u>"]]
-      end)
-    end, { desc = "Scroll up in the diff view", buffer = state.file_list_bufnr, })
-
-    vim.keymap.set("n", "<Plug>GitDiffViewRefresh", a.make_spawn(function()
+  vim.keymap.set(
+    "n",
+    "<Plug>GitDiffViewRefresh",
+    a.make_spawn(function()
       await(set_file_list())
       notify(vim.log.levels.INFO, "Refreshing file list")
-    end), { desc = "Scroll up in the diff view", buffer = state.file_list_bufnr, })
+    end),
+    { desc = "Scroll up in the diff view", buffer = state.file_list_bufnr }
+  )
 
-    vim.api.nvim_exec_autocmds("User", {
-      pattern = "GitDiffViewOpen",
-      data = {
-        old_winnr = state.old_winnr,
-        new_winnr = state.new_winnr,
-        file_list_winnr = state.file_list_winnr,
-        old_bufnr = state.old_bufnr,
-        new_bufnr = state.new_bufnr,
-        file_list_bufnr = state.file_list_bufnr,
-      },
-    })
-  end
-)
+  vim.api.nvim_exec_autocmds("User", {
+    pattern = "GitDiffViewOpen",
+    data = {
+      old_winnr = state.old_winnr,
+      new_winnr = state.new_winnr,
+      file_list_winnr = state.file_list_winnr,
+      old_bufnr = state.old_bufnr,
+      new_bufnr = state.new_bufnr,
+      file_list_bufnr = state.file_list_bufnr,
+    },
+  })
+end)
 
 --- @param opts OpenDiffViewParams
 M.toggle_diff_view = function(opts)
