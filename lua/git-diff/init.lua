@@ -385,6 +385,7 @@ local ns_id = vim.api.nvim_create_namespace "GitDiff"
 --- @type fun(bufnr: number): vim.async.Task
 local update_state_for_buf = function(bufnr)
   return vim.async.run("update_state_for_buf_task", function()
+    ensure_main_loop()
     if not vim.api.nvim_buf_is_valid(bufnr) then
       return
     end
