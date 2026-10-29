@@ -1,4 +1,4 @@
-*git-diff.txt*                                     Last change: 2026 August 20
+*git-diff.txt*                                    Last change: 2026 October 29
 
 ==============================================================================
 Table of Contents                                 *git-diff-table-of-contents*
@@ -53,14 +53,14 @@ EXAMPLE CONFIG                                       *git-diff-example-config*
     vim.g.git_diff = {
       smooth_scroll = true,
     }
-
+    
     vim.keymap.set("n", "]h", "<Plug>GitDiffNextHunk")
     vim.keymap.set("n", "[h", "<Plug>GitDiffPrevHunk")
-
+    
     vim.keymap.set("n", "gh", "<Plug>GitDiffResetHunk")
     vim.keymap.set("v", "gh", "<Plug>GitDiffResetHunk")
     vim.keymap.set("n", "gH", "<Plug>GitDiffResetFile")
-
+    
     vim.keymap.set("n", "<leader>gd", function()
       require("git-diff").toggle_diff_view { diff_type = "worktree-index" }
     end)
@@ -80,43 +80,43 @@ PLUG REMAPS                                             *git-diff-plug-remaps*
 
 
 
-
+                                                                              
 `<PLUG>GITDIFFNEXTHUNK`                       *git-diff-<plug>gitdiffnexthunk*
 
 Navigate to the next hunk. Wraps to the first hunk if none remain.
 
 
-
+                                                                              
 `<PLUG>GITDIFFPREVHUNK`                       *git-diff-<plug>gitdiffprevhunk*
 
 Navigate to the previous hunk. Wraps to the last hunk if none remain.
 
 
-
+                                                                              
 `<PLUG>GITDIFFRESETHUNK`                     *git-diff-<plug>gitdiffresethunk*
 
 - In normal mode: reset the hunk on the current line
 - In visual mode: reset all hunks that overlap with the visual selection
 
-
+                                                                              
 `<PLUG>GITDIFFRESETFILE`                     *git-diff-<plug>gitdiffresetfile*
 
 Reset the entire file to the index version.
 
 
-
+                                                                              
 `<PLUG>GITDIFFVIEWSCROLLDOWN`           *git-diff-<plug>gitdiffviewscrolldown*
 
 Scroll down in the diff view (both splits simultaneously).
 
 
-
+                                                                              
 `<PLUG>GITDIFFVIEWSCROLLUP`               *git-diff-<plug>gitdiffviewscrollup*
 
 Scroll up in the diff view (both splits simultaneously).
 
 
-
+                                                                              
 `<PLUG>GITDIFFVIEWREFRESH`                 *git-diff-<plug>gitdiffviewrefresh*
 
 Refresh the list of files with diffs.
@@ -127,7 +127,7 @@ API                                                             *git-diff-api*
 
 
 
-
+                                                                              
 `REQUIRE("GIT-DIFF").OPEN_DIFF_VIEW(OPTS)`*git-diff-require("git-diff").open_diff_view(opts)*
 
 Opens a new tab with a 3-pane diff view:
@@ -146,7 +146,7 @@ If the diff view tab already exists, switches to it instead of creating a new
 one.
 
 
-
+                                                                              
 `REQUIRE("GIT-DIFF").TOGGLE_DIFF_VIEW(OPTS)`*git-diff-require("git-diff").toggle_diff_view(opts)*
 
 Toggles the diff view: opens it if not open, closes it if already open.
@@ -168,21 +168,21 @@ AUTOCOMMAND EVENTS                               *git-diff-autocommand-events*
 
 
 
-
+                                                                              
 `USER GITINDEXCHANGED`                         *git-diff-user-gitindexchanged*
 
 Fired when `.git/index` changes on disk (e.g. `git add`, `git checkout`, `git
 stash`, `git reset`).
 
 
-
+                                                                              
 `USER GITHEADCHANGED`                           *git-diff-user-githeadchanged*
 
 Fired when `.git/HEAD` changes on disk (e.g. `git checkout <branch>`, `git
 reset --hard`).
 
 
-
+                                                                              
 `USER GITDIFFVIEWOPEN`                         *git-diff-user-gitdiffviewopen*
 
 Fired after the diff view opens. `data` contains `old_winnr`, `new_winnr`,

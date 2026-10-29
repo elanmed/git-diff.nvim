@@ -897,37 +897,47 @@ M.open_diff_view = cb_async(function(opts)
     end,
   })
 
-  vim.keymap.set("n", "<Plug>GitDiffViewScrollDown", cb_async(function()
-    local winnr = state.old_winnr
-    if not vim.api.nvim_win_is_valid(winnr) then
-      return
-    end
+  vim.keymap.set(
+    "n",
+    "<Plug>GitDiffViewScrollDown",
+    cb_async(function()
+      local winnr = state.old_winnr
+      if not vim.api.nvim_win_is_valid(winnr) then
+        return
+      end
 
-    if is_smooth_scroll_enabled() then
-      smooth_scroll(winnr, "j", get_scroll_num_lines(winnr))
-    else
-      vim.api.nvim_win_call(winnr, function()
-        vim.cmd [[execute "normal! \<C-d>"]]
-        vim.cmd.normal { "zz", bang = true }
-      end)
-    end
-  end), { desc = "Scroll down in the diff view", buffer = state.file_list_bufnr })
+      if is_smooth_scroll_enabled() then
+        smooth_scroll(winnr, "j", get_scroll_num_lines(winnr))
+      else
+        vim.api.nvim_win_call(winnr, function()
+          vim.cmd [[execute "normal! \<C-d>"]]
+          vim.cmd.normal { "zz", bang = true }
+        end)
+      end
+    end),
+    { desc = "Scroll down in the diff view", buffer = state.file_list_bufnr }
+  )
 
-  vim.keymap.set("n", "<Plug>GitDiffViewScrollUp", cb_async(function()
-    local winnr = state.old_winnr
-    if not vim.api.nvim_win_is_valid(winnr) then
-      return
-    end
+  vim.keymap.set(
+    "n",
+    "<Plug>GitDiffViewScrollUp",
+    cb_async(function()
+      local winnr = state.old_winnr
+      if not vim.api.nvim_win_is_valid(winnr) then
+        return
+      end
 
-    if is_smooth_scroll_enabled() then
-      smooth_scroll(winnr, "k", get_scroll_num_lines(winnr))
-    else
-      vim.api.nvim_win_call(winnr, function()
-        vim.cmd [[execute "normal! \<C-u>"]]
-        vim.cmd.normal { "zz", bang = true }
-      end)
-    end
-  end), { desc = "Scroll up in the diff view", buffer = state.file_list_bufnr })
+      if is_smooth_scroll_enabled() then
+        smooth_scroll(winnr, "k", get_scroll_num_lines(winnr))
+      else
+        vim.api.nvim_win_call(winnr, function()
+          vim.cmd [[execute "normal! \<C-u>"]]
+          vim.cmd.normal { "zz", bang = true }
+        end)
+      end
+    end),
+    { desc = "Scroll up in the diff view", buffer = state.file_list_bufnr }
+  )
 
   vim.keymap.set(
     "n",
