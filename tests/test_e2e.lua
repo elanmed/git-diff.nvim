@@ -52,7 +52,7 @@ local function mock_read_index_file(content)
   child.lua(string.format(
     [[
     M.read_index_file = function()
-      return function(resolve) resolve(%q) end
+      return vim.async.run("mock_read_index_file_task", function() return %q end)
     end
   ]],
     content
@@ -64,9 +64,7 @@ local function mock_read_index_files(files)
     [[
     local files = ...
     M.read_index_file = function(rel_filename)
-      return function(resolve)
-        resolve(files[rel_filename])
-      end
+      return vim.async.run("mock_read_index_files_task", function() return files[rel_filename] end)
     end
   ]],
     { files }
@@ -77,7 +75,7 @@ local function mock_run_diff_cmd(fn_name, content)
   child.lua(string.format(
     [[
     M.%s = function()
-      return function(resolve) resolve(%q) end
+      return vim.async.run("mock_run_diff_cmd_task", function() return %q end)
     end
   ]],
     fn_name,
@@ -333,6 +331,29 @@ line3
   local bufnr = child.api.nvim_get_current_buf()
   expect_hunks(bufnr)
   expect_sign(bufnr, 2, "DiffSignChange")
+end
+
+T["hunk signs"]["refreshes after the index changes"] = function()
+  mock_read_index_file [[line1
+line2
+]]
+  set_worktree_buffer("test.txt", { "line1", "line2", "line3" })
+  trigger_diff_update()
+
+  local bufnr = child.api.nvim_get_current_buf()
+  expect_hunks(bufnr)
+  expect_sign(bufnr, 3, "DiffSignAdd")
+
+  mock_read_index_file [[line1
+line2
+line3
+]]
+  child.api.nvim_exec_autocmds("User", { pattern = "GitIndexChanged" })
+
+  expect_state(function()
+    local ns_id = child.api.nvim_create_namespace "GitDiff"
+    return #child.api.nvim_buf_get_extmarks(bufnr, ns_id, 0, -1, {}) == 0
+  end)
 end
 
 T["reset hunk"] = new_set()
