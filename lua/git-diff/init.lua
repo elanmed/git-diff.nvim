@@ -382,15 +382,24 @@ local buffer_state = {}
 
 local ns_id = vim.api.nvim_create_namespace "GitDiff"
 
+local clear_state_for_buf = function(bufnr)
+  buffer_state[bufnr] = nil
+  if vim.api.nvim_buf_is_valid(bufnr) then
+    vim.api.nvim_buf_clear_namespace(bufnr, ns_id, 0, -1)
+  end
+end
+
 --- @type fun(bufnr: number): vim.async.Task
 local update_state_for_buf = function(bufnr)
   return vim.async.run("update_state_for_buf_task", function()
     ensure_main_loop()
     if not vim.api.nvim_buf_is_valid(bufnr) then
+      clear_state_for_buf(bufnr)
       return
     end
     local bufname = vim.fs.relpath(vim.fn.getcwd(), vim.api.nvim_buf_get_name(bufnr))
     if bufname == nil then
+      clear_state_for_buf(bufnr)
       return
     end
 
@@ -401,12 +410,14 @@ local update_state_for_buf = function(bufnr)
       file_bufnr = bufnr,
     })
     if indices == nil then
+      clear_state_for_buf(bufnr)
       return
     end
 
     local index_str =
       vim.async.await(resolve_file_contents { file_location = "index", rel_filename = bufname })
     if index_str == nil then
+      clear_state_for_buf(bufnr)
       return
     end
     local index_lines = vim.split(index_str, "\n", { trimempty = true })

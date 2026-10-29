@@ -413,6 +413,35 @@ line3
   end)
 end
 
+T["hunk signs"]["clears stale state when the index file is missing"] = function()
+  mock_read_index_file [[line1
+line2
+]]
+  set_worktree_buffer("test.txt", { "line1", "line2 changed" })
+  trigger_diff_update()
+
+  local bufnr = child.api.nvim_get_current_buf()
+  expect_hunks(bufnr)
+
+  mock_read_index_files {}
+  child.api.nvim_exec_autocmds("User", { pattern = "GitIndexChanged" })
+  expect_state(function()
+    local ns_id = child.api.nvim_create_namespace "GitDiff"
+    return #child.api.nvim_buf_get_extmarks(bufnr, ns_id, 0, -1, {}) == 0
+  end)
+
+  child.lua [[
+    _G.last_notification = nil
+    vim.notify = function(message, level)
+      _G.last_notification = { message, level }
+    end
+  ]]
+  child.api.nvim_win_set_cursor(0, { 2, 0 })
+  child.type_keys "<Plug>GitDiffResetHunk"
+  expect_lines { "line1", "line2 changed" }
+  eq(child.lua_get "_G.last_notification[1]", "[git-diff.nvim]: Missing diff state for this buffer")
+end
+
 T["reset hunk"] = new_set()
 
 T["reset hunk"]["resets a single-line hunk"] = function()
