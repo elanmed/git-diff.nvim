@@ -631,6 +631,7 @@ end
 --- @type fun():nil
 local setup_file_watcher = cb_async(function()
   local git_dir = vim.async.await(vim_system_stdout { "git", "rev-parse", "--absolute-git-dir" })
+  ensure_main_loop()
   if git_dir == nil then
     return
   end
@@ -773,6 +774,7 @@ local update_diff_view = cb_async(function(opts)
     rel_filename = opts.rel_filename,
     upstream_branch = opts.upstream_branch,
   })
+  ensure_main_loop()
   if curr_iter ~= iter then
     return
   end
@@ -834,6 +836,7 @@ M.open_diff_view = cb_async(function(opts)
         diff_type = opts.diff_type,
         upstream_branch = opts.upstream_branch,
       })
+      ensure_main_loop()
       file_list_str = if_nil(file_list_str, "")
       local file_list_lines = vim.split(file_list_str, "\n", { trimempty = true })
 
@@ -846,6 +849,7 @@ M.open_diff_view = cb_async(function(opts)
   end
 
   local file_list_lines = vim.async.await(set_file_list())
+  ensure_main_loop()
   vim.cmd "botright 10split"
   state.file_list_winnr = vim.api.nvim_get_current_win()
   vim.api.nvim_win_set_buf(state.file_list_winnr, state.file_list_bufnr)
@@ -945,6 +949,7 @@ M.open_diff_view = cb_async(function(opts)
     "<Plug>GitDiffViewRefresh",
     cb_async(function()
       vim.async.await(set_file_list())
+      ensure_main_loop()
       notify(vim.log.levels.INFO, "Refreshing file list")
     end),
     { desc = "Scroll up in the diff view", buffer = state.file_list_bufnr }
