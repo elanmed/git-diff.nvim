@@ -221,6 +221,7 @@ local resolve_file_contents = function(opts)
         local file_lines = M.readfile(opts.rel_filename)
         file_contents = table.concat(file_lines, "\n")
       else
+        ensure_main_loop()
         local buf_lines = vim.api.nvim_buf_get_lines(opts.file_bufnr, 0, -1, false)
         file_contents = table.concat(buf_lines, "\n")
       end
