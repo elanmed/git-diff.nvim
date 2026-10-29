@@ -15,6 +15,10 @@ A minimal plugin to view, navigate, and reset git hunks. Also includes a diff vi
 ## Example config
 
 ```lua
+vim.g.git_diff = {
+  smooth_scroll = true,
+}
+
 vim.keymap.set("n", "]h", "<Plug>GitDiffNextHunk")
 vim.keymap.set("n", "[h", "<Plug>GitDiffPrevHunk")
 
@@ -32,6 +36,8 @@ vim.keymap.set("n", "<leader>gm", function()
   require("git-diff").toggle_diff_view { diff_type = "head-mergebase" }
 end)
 ```
+
+`vim.g.git_diff.smooth_scroll` (`boolean`, default `true`) controls animated diff-view scrolling. Set it to `false` to use regular half-page scrolling.
 
 ## Plug remaps
 

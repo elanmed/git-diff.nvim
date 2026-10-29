@@ -192,6 +192,41 @@ local function setup_diff_view_test(filename, worktree_lines, index_content)
   mock_run_diff_cmd("run_diff_cmd_worktree_index", filename .. "\n")
 end
 
+local function setup_diff_view_scroll_test()
+  local index_lines = {}
+  local worktree_lines = {}
+  for index = 1, 30 do
+    index_lines[index] = "line " .. index
+    worktree_lines[index] = index_lines[index]
+  end
+  worktree_lines[1] = "changed line"
+
+  set_named_buffer("scroll-test.txt", worktree_lines)
+  mock_read_index_file(table.concat(index_lines, "\n") .. "\n")
+  trigger_diff_update()
+  expect_hunks(child.api.nvim_get_current_buf())
+  mock_run_diff_cmd("run_diff_cmd_worktree_index", "scroll-test.txt\n")
+
+  child.lua [[M.open_diff_view({ diff_type = "worktree-index" })]]
+  expect_state(function()
+    return #child.api.nvim_list_tabpages() == 2 and #child.api.nvim_tabpage_list_wins(0) == 3
+  end)
+
+  local _, old_win, files_win = get_diff_view_windows "scroll-test.txt"
+  child.wo[old_win].scroll = 1
+  child.api.nvim_set_current_win(files_win)
+  child.lua [[
+    local sleep = vim.async.sleep
+    _G.smooth_scroll_sleep_calls = {}
+    vim.async.sleep = function(ms)
+      if ms == 10 then
+        table.insert(_G.smooth_scroll_sleep_calls, ms)
+      end
+      return sleep(ms)
+    end
+  ]]
+end
+
 local T = new_set {
   hooks = {
     pre_case = function()
@@ -480,6 +515,21 @@ line5
 end
 
 T["diff view"] = new_set()
+
+T["diff view"]["smooth scroll defaults to enabled"] = function()
+  setup_diff_view_scroll_test()
+
+  child.type_keys "<Plug>GitDiffViewScrollDown"
+  eq(child.lua_get "#_G.smooth_scroll_sleep_calls", 1)
+end
+
+T["diff view"]["smooth scroll can be disabled"] = function()
+  child.g.git_diff = { smooth_scroll = false }
+  setup_diff_view_scroll_test()
+
+  child.type_keys "<Plug>GitDiffViewScrollUp"
+  eq(child.lua_get "#_G.smooth_scroll_sleep_calls", 0)
+end
 
 T["diff view"]["opens a diff view tab"] = function()
   setup_diff_view_test(

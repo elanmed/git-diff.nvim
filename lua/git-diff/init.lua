@@ -55,6 +55,44 @@ local if_nil = function(val, fallback)
   return val
 end
 
+--- @class GitDiffConfig
+--- @field smooth_scroll? boolean
+local is_smooth_scroll_enabled = function()
+  --- @type GitDiffConfig
+  local opts = if_nil(vim.g.git_diff, {})
+  return if_nil(opts.smooth_scroll, true)
+end
+
+--- @param winnr integer
+--- @param direction "j" | "k"
+--- @param num_lines integer
+local smooth_scroll = function(winnr, direction, num_lines)
+  for _ = 1, num_lines do
+    if not vim.api.nvim_win_is_valid(winnr) then
+      return
+    end
+
+    vim.api.nvim_win_call(winnr, function()
+      vim.cmd.normal { direction, bang = true }
+    end)
+    vim.async.sleep(10)
+  end
+
+  if vim.api.nvim_win_is_valid(winnr) then
+    vim.api.nvim_win_call(winnr, function()
+      vim.cmd.normal { "zz", bang = true }
+    end)
+  end
+end
+
+local get_scroll_num_lines = function(winnr)
+  local num_lines = vim.wo[winnr].scroll
+  if num_lines == 0 then
+    num_lines = math.floor(vim.api.nvim_win_get_height(winnr) / 2)
+  end
+  return math.max(1, num_lines)
+end
+
 --- @param path string
 --- @return string[]
 M.readfile = function(path)
@@ -859,17 +897,37 @@ M.open_diff_view = cb_async(function(opts)
     end,
   })
 
-  vim.keymap.set("n", "<Plug>GitDiffViewScrollDown", function()
-    vim.api.nvim_win_call(state.old_winnr, function()
-      vim.cmd [[execute "normal! \<C-d>"]]
-    end)
-  end, { desc = "Scroll down in the diff view", buffer = state.file_list_bufnr })
+  vim.keymap.set("n", "<Plug>GitDiffViewScrollDown", cb_async(function()
+    local winnr = state.old_winnr
+    if not vim.api.nvim_win_is_valid(winnr) then
+      return
+    end
 
-  vim.keymap.set("n", "<Plug>GitDiffViewScrollUp", function()
-    vim.api.nvim_win_call(state.old_winnr, function()
-      vim.cmd [[execute "normal! \<C-u>"]]
-    end)
-  end, { desc = "Scroll up in the diff view", buffer = state.file_list_bufnr })
+    if is_smooth_scroll_enabled() then
+      smooth_scroll(winnr, "j", get_scroll_num_lines(winnr))
+    else
+      vim.api.nvim_win_call(winnr, function()
+        vim.cmd [[execute "normal! \<C-d>"]]
+        vim.cmd.normal { "zz", bang = true }
+      end)
+    end
+  end), { desc = "Scroll down in the diff view", buffer = state.file_list_bufnr })
+
+  vim.keymap.set("n", "<Plug>GitDiffViewScrollUp", cb_async(function()
+    local winnr = state.old_winnr
+    if not vim.api.nvim_win_is_valid(winnr) then
+      return
+    end
+
+    if is_smooth_scroll_enabled() then
+      smooth_scroll(winnr, "k", get_scroll_num_lines(winnr))
+    else
+      vim.api.nvim_win_call(winnr, function()
+        vim.cmd [[execute "normal! \<C-u>"]]
+        vim.cmd.normal { "zz", bang = true }
+      end)
+    end
+  end), { desc = "Scroll up in the diff view", buffer = state.file_list_bufnr })
 
   vim.keymap.set(
     "n",
