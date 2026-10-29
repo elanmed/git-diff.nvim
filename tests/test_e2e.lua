@@ -328,6 +328,28 @@ end
 
 T["hunk signs"] = new_set()
 
+T["hunk signs"]["defines default highlight links"] = function()
+  eq(child.api.nvim_get_hl(0, { name = "DiffSignDelete", link = true }), {
+    default = true,
+    link = "DiffDelete",
+  })
+  eq(child.api.nvim_get_hl(0, { name = "DiffSignAdd", link = true }), {
+    default = true,
+    link = "DiffAdd",
+  })
+  eq(child.api.nvim_get_hl(0, { name = "DiffSignChange", link = true }), {
+    default = true,
+    link = "DiffChange",
+  })
+end
+
+T["hunk signs"]["preserves user highlight overrides across colorscheme changes"] = function()
+  child.api.nvim_set_hl(0, "DiffSignAdd", { link = "Error" })
+  child.api.nvim_exec_autocmds("ColorScheme", { pattern = "test" })
+
+  eq(child.api.nvim_get_hl(0, { name = "DiffSignAdd", link = true }), { link = "Error" })
+end
+
 T["hunk signs"]["adds extmarks for added lines"] = function()
   mock_read_index_file [[line1
 line2

@@ -558,6 +558,20 @@ local function reset_hunk(opts)
   end
 end
 
+local setup_highlights = function()
+  local set_default_highlights = function()
+    vim.api.nvim_set_hl(0, "DiffSignDelete", { default = true, link = "DiffDelete" })
+    vim.api.nvim_set_hl(0, "DiffSignAdd", { default = true, link = "DiffAdd" })
+    vim.api.nvim_set_hl(0, "DiffSignChange", { default = true, link = "DiffChange" })
+  end
+
+  set_default_highlights()
+  vim.api.nvim_create_autocmd("ColorScheme", {
+    group = vim.api.nvim_create_augroup("GitDiffHighlights", { clear = true }),
+    callback = set_default_highlights,
+  })
+end
+
 local setup_global_autocmds = function()
   local timer = nil
   vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
@@ -978,6 +992,7 @@ M.toggle_diff_view = function(opts)
 end
 
 M.setup = function()
+  setup_highlights()
   setup_global_autocmds()
   setup_file_watcher()
   setup_global_keymaps()
