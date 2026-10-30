@@ -384,6 +384,7 @@ local ns_id = vim.api.nvim_create_namespace "GitDiff"
 
 local clear_state_for_buf = function(bufnr)
   buffer_state[bufnr] = nil
+  ensure_main_loop()
   if vim.api.nvim_buf_is_valid(bufnr) then
     vim.api.nvim_buf_clear_namespace(bufnr, ns_id, 0, -1)
   end
