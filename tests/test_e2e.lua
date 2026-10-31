@@ -11,12 +11,12 @@ local expect_hunks = MiniTest.new_expectation(
     timeout = timeout or 1000
     local ns_id = child.api.nvim_create_namespace "GitHunks"
     return child.lua_func(
-      --- @param timeout integer
-      --- @param bufnr integer
-      --- @param ns_id integer
-      function(timeout, bufnr, ns_id)
-        return vim.wait(timeout, function()
-          return #vim.api.nvim_buf_get_extmarks(bufnr, ns_id, 0, -1, {}) > 0
+      --- @param timeout_arg integer
+      --- @param bufnr_arg integer
+      --- @param ns_id_arg integer
+      function(timeout_arg, bufnr_arg, ns_id_arg)
+        return vim.wait(timeout_arg, function()
+          return #vim.api.nvim_buf_get_extmarks(bufnr_arg, ns_id_arg, 0, -1, {}) > 0
         end)
       end,
       timeout,
@@ -70,12 +70,17 @@ local expect_cursor = MiniTest.new_expectation(
 --- @param content string
 local function mock_read_index_file(content)
   child.lua_func(
-    --- @param content string
-    function(content)
-      M.read_index_file = function()
-        return vim.async.run("mock_read_index_file_task", function()
-          return content
-        end)
+    --- @param content_arg string
+    function(content_arg)
+      --- @type table
+      local M_arg = M
+      M_arg.read_index_file = function()
+        return vim.async.run(
+          --- @return string?
+          function()
+            return content_arg
+          end
+        )
       end
     end,
     content
@@ -85,21 +90,24 @@ end
 --- @param files table<string, string>
 local function mock_read_index_files(files)
   child.lua_func(
-    --- @param files table<string, string>
-    function(files)
-      --- @param rel_filename string
-      M.read_index_file = function(rel_filename)
-        return vim.async.run("mock_read_index_files_task", function()
-          return files[rel_filename]
-        end)
+    --- @param files_arg table<string, string>
+    function(files_arg)
+      --- @type table
+      local M_arg = M
+      --- @param rel_filename_arg string
+      M_arg.read_index_file = function(rel_filename_arg)
+        return vim.async.run(
+          --- @return string?
+          function()
+            return files_arg[rel_filename_arg]
+          end
+        )
       end
     end,
     files
   )
 end
 
---- @param fn_name string
---- @param content string
 local expect_sign = MiniTest.new_expectation(
   "line has expected sign",
   --- @param bufnr integer
@@ -399,6 +407,7 @@ line2
     _G.last_notification = nil
     --- @param message string
     --- @param level vim.log.levels
+    ---@diagnostic disable-next-line: duplicate-set-field
     vim.notify = function(message, level)
       _G.last_notification = { message, level }
     end

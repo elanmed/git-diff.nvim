@@ -114,7 +114,8 @@ local system_async = vim.async.wrap(3, vim.system)
 
 --- @type fun(cmd: string[], opts: vim.SystemOpts?): vim.async.Task<string?>
 local vim_system_stdout = function(cmd, opts)
-  return vim.async.run("vim_system_stdout_task", function()
+  --- @return string?
+  return vim.async.run(function()
     local out = system_async(cmd, opts)
     if out.code ~= 0 then
       return nil
@@ -136,7 +137,8 @@ end
 
 --- @type fun(opts: GenerateDiffParams): vim.async.Task<DiffHunk[]?>
 local generate_diff = function(opts)
-  return vim.async.run("generate_diff_task", function()
+  --- @return DiffHunk[]?
+  return vim.async.run(function()
     local old_str = vim.async.await(M.read_index_file(opts.rel_filename))
     if old_str == nil then
       return nil
