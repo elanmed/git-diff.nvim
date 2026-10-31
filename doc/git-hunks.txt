@@ -1,4 +1,4 @@
-*git-hunks.txt*                                   Last change: 2026 October 29
+*git-hunks.txt*                                   Last change: 2026 October 31
 
 ==============================================================================
 Table of Contents                                *git-hunks-table-of-contents*
@@ -19,14 +19,15 @@ Autocommand events ............................ |git-hunks-autocommand-events|
 `GIT-HUNKS.NVIM`                                    *git-hunks-git-hunks.nvim*
 
 
-A minimal plugin to navigate and reset git hunks.
+A minimal plugin to view, navigate, and reset git hunks. Also includes a diff
+view for comparing any two git file locations.
 
 
 ------------------------------------------------------------------------------
 FEATURES                                                  *git-hunks-features*
 
 
-- Minimal Lua implementation, no dependencies
+- 1 source file (~500 LOC), no dependencies
 - Async diff computation via coroutines (no UI freezing)
 - Signs update on every edit with debouncing (300ms)
 - Watches `.git/index` and `.git/HEAD` for external changes (e.g. `git
