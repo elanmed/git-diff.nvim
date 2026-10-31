@@ -3,90 +3,110 @@ local eq = MiniTest.expect.equality
 
 local child = MiniTest.new_child_neovim()
 
-local expect_hunks = MiniTest.new_expectation("buffer has diff hunks", function(bufnr, timeout)
-  timeout = timeout or 1000
-  local ns_id = child.api.nvim_create_namespace "GitDiff"
-  return child.lua_get(string.format(
-    [[
-      vim.wait(%d, function()
-        return #vim.api.nvim_buf_get_extmarks(%d, %d, 0, -1, {}) > 0
-      end)
-    ]],
-    timeout,
-    bufnr,
-    ns_id
-  ))
-end, function(bufnr, timeout)
-  timeout = timeout or 1000
-  local ns_id = child.api.nvim_create_namespace "GitDiff"
-  local count = #child.api.nvim_buf_get_extmarks(bufnr, ns_id, 0, -1, {})
-  return string.format(
-    "Expected buffer %s to have GitDiff extmarks after %d ms, found %d",
-    tostring(bufnr),
-    timeout,
-    count
-  )
-end)
-
-local expect_cursor = MiniTest.new_expectation("cursor at line", function(line, col)
-  local cursor = child.api.nvim_win_get_cursor(0)
-  if col == nil then
-    return cursor[1] == line
+local expect_hunks = MiniTest.new_expectation(
+  "buffer has diff hunks",
+  --- @param bufnr integer
+  --- @param timeout? integer
+  function(bufnr, timeout)
+    timeout = timeout or 1000
+    local ns_id = child.api.nvim_create_namespace "GitHunks"
+    return child.lua_func(
+      --- @param timeout integer
+      --- @param bufnr integer
+      --- @param ns_id integer
+      function(timeout, bufnr, ns_id)
+        return vim.wait(timeout, function()
+          return #vim.api.nvim_buf_get_extmarks(bufnr, ns_id, 0, -1, {}) > 0
+        end)
+      end,
+      timeout,
+      bufnr,
+      ns_id
+    )
+  end,
+  --- @param bufnr integer
+  --- @param timeout? integer
+  function(bufnr, timeout)
+    timeout = timeout or 1000
+    local ns_id = child.api.nvim_create_namespace "GitHunks"
+    local count = #child.api.nvim_buf_get_extmarks(bufnr, ns_id, 0, -1, {})
+    return string.format(
+      "Expected buffer %s to have GitHunks extmarks after %d ms, found %d",
+      tostring(bufnr),
+      timeout,
+      count
+    )
   end
-  return cursor[1] == line and cursor[2] == col
-end, function(line, col)
-  local cursor = child.api.nvim_win_get_cursor(0)
-  if col == nil then
-    return string.format("Expected cursor at line %d, actual line %d", line, cursor[1])
-  end
-  return string.format(
-    "Expected cursor at line %d col %d, actual line %d col %d",
-    line,
-    col,
-    cursor[1],
-    cursor[2]
-  )
-end)
+)
 
+local expect_cursor = MiniTest.new_expectation(
+  "cursor at line",
+  --- @param line integer
+  --- @param col? integer
+  function(line, col)
+    local cursor = child.api.nvim_win_get_cursor(0)
+    if col == nil then
+      return cursor[1] == line
+    end
+    return cursor[1] == line and cursor[2] == col
+  end,
+  --- @param line integer
+  --- @param col? integer
+  function(line, col)
+    local cursor = child.api.nvim_win_get_cursor(0)
+    if col == nil then
+      return string.format("Expected cursor at line %d, actual line %d", line, cursor[1])
+    end
+    return string.format(
+      "Expected cursor at line %d col %d, actual line %d col %d",
+      line,
+      col,
+      cursor[1],
+      cursor[2]
+    )
+  end
+)
+
+--- @param content string
 local function mock_read_index_file(content)
-  child.lua(string.format(
-    [[
-    M.read_index_file = function()
-      return vim.async.run("mock_read_index_file_task", function() return %q end)
-    end
-  ]],
+  child.lua_func(
+    --- @param content string
+    function(content)
+      M.read_index_file = function()
+        return vim.async.run("mock_read_index_file_task", function()
+          return content
+        end)
+      end
+    end,
     content
-  ))
-end
-
-local function mock_read_index_files(files)
-  child.lua(
-    [[
-    local files = ...
-    M.read_index_file = function(rel_filename)
-      return vim.async.run("mock_read_index_files_task", function() return files[rel_filename] end)
-    end
-  ]],
-    { files }
   )
 end
 
-local function mock_run_diff_cmd(fn_name, content)
-  child.lua(string.format(
-    [[
-    M.%s = function()
-      return vim.async.run("mock_run_diff_cmd_task", function() return %q end)
-    end
-  ]],
-    fn_name,
-    content
-  ))
+--- @param files table<string, string>
+local function mock_read_index_files(files)
+  child.lua_func(
+    --- @param files table<string, string>
+    function(files)
+      --- @param rel_filename string
+      M.read_index_file = function(rel_filename)
+        return vim.async.run("mock_read_index_files_task", function()
+          return files[rel_filename]
+        end)
+      end
+    end,
+    files
+  )
 end
 
+--- @param fn_name string
+--- @param content string
 local expect_sign = MiniTest.new_expectation(
   "line has expected sign",
+  --- @param bufnr integer
+  --- @param line_1i integer
+  --- @param hl_group string
   function(bufnr, line_1i, hl_group)
-    local ns_id = child.api.nvim_create_namespace "GitDiff"
+    local ns_id = child.api.nvim_create_namespace "GitHunks"
     local marks = child.api.nvim_buf_get_extmarks(
       bufnr,
       ns_id,
@@ -99,8 +119,11 @@ local expect_sign = MiniTest.new_expectation(
     end
     return marks[1][4].number_hl_group == hl_group
   end,
+  --- @param bufnr integer
+  --- @param line_1i integer
+  --- @param hl_group string
   function(bufnr, line_1i, hl_group)
-    local ns_id = child.api.nvim_create_namespace "GitDiff"
+    local ns_id = child.api.nvim_create_namespace "GitHunks"
     local marks = child.api.nvim_buf_get_extmarks(
       bufnr,
       ns_id,
@@ -120,25 +143,41 @@ local expect_sign = MiniTest.new_expectation(
   end
 )
 
-local expect_lines = MiniTest.new_expectation("buffer lines", function(expected_lines)
-  return vim.deep_equal(child.api.nvim_buf_get_lines(0, 0, -1, false), expected_lines)
-end, function(expected_lines)
-  local actual_lines = child.api.nvim_buf_get_lines(0, 0, -1, false)
-  return string.format(
-    "Expected lines:\n%s\nActual lines:\n%s",
-    vim.inspect(expected_lines),
-    vim.inspect(actual_lines)
-  )
-end)
+local expect_lines = MiniTest.new_expectation(
+  "buffer lines",
+  --- @param expected_lines string[]
+  function(expected_lines)
+    return vim.deep_equal(child.api.nvim_buf_get_lines(0, 0, -1, false), expected_lines)
+  end,
+  --- @param expected_lines string[]
+  function(expected_lines)
+    local actual_lines = child.api.nvim_buf_get_lines(0, 0, -1, false)
+    return string.format(
+      "Expected lines:\n%s\nActual lines:\n%s",
+      vim.inspect(expected_lines),
+      vim.inspect(actual_lines)
+    )
+  end
+)
 
-local expect_state = MiniTest.new_expectation("state condition met", function(predicate, timeout)
-  timeout = timeout or 1000
-  return vim.wait(timeout, predicate)
-end, function(_, timeout)
-  timeout = timeout or 1000
-  return string.format("Expected state condition to be met after %d ms", timeout)
-end)
+local expect_state = MiniTest.new_expectation(
+  "state condition met",
+  --- @param predicate fun(): boolean
+  --- @param timeout? integer
+  function(predicate, timeout)
+    timeout = timeout or 1000
+    return vim.wait(timeout, predicate)
+  end,
+  --- @param _ fun(): boolean
+  --- @param timeout? integer
+  function(_, timeout)
+    timeout = timeout or 1000
+    return string.format("Expected state condition to be met after %d ms", timeout)
+  end
+)
 
+--- @param rel_path string
+--- @param lines string[]
 local function set_worktree_buffer(rel_path, lines)
   child.bo.buftype = ""
   child.bo.readonly = false
@@ -147,92 +186,18 @@ local function set_worktree_buffer(rel_path, lines)
   child.api.nvim_buf_set_lines(0, 0, -1, true, lines)
 end
 
-local function set_named_buffer(rel_path, lines)
-  child.bo.buftype = ""
-  child.bo.readonly = false
-  child.bo.modifiable = true
-  child.api.nvim_buf_set_name(0, rel_path)
-  child.api.nvim_buf_set_lines(0, 0, -1, true, lines)
-end
-
 local function trigger_diff_update()
   child.cmd "doautocmd BufEnter"
-end
-
-local function get_diff_view_windows(filename)
-  local new_win, old_win, files_win
-  for _, win in ipairs(child.api.nvim_tabpage_list_wins(0)) do
-    local bufnr = child.api.nvim_win_get_buf(win)
-    local buftype = child.api.nvim_buf_get_option(bufnr, "buftype")
-    local filetype = child.api.nvim_buf_get_option(bufnr, "filetype")
-    local bufname = child.api.nvim_buf_get_name(bufnr)
-    local basename = child.fn.fnamemodify(bufname, ":t")
-
-    if filetype == "git-diff-view-file-list" then
-      files_win = win
-    elseif buftype == "" and basename == filename then
-      new_win = win
-    else
-      old_win = win
-    end
-  end
-  return new_win, old_win, files_win
-end
-
-local function get_win_lines(win_id)
-  local bufnr = child.api.nvim_win_get_buf(win_id)
-  return child.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-end
-
-local function setup_diff_view_test(filename, worktree_lines, index_content)
-  set_named_buffer(filename, worktree_lines)
-  mock_read_index_files { [filename] = index_content }
-  trigger_diff_update()
-  expect_hunks(child.api.nvim_get_current_buf())
-  mock_run_diff_cmd("run_diff_cmd_worktree_index", filename .. "\n")
-end
-
-local function setup_diff_view_scroll_test()
-  local index_lines = {}
-  local worktree_lines = {}
-  for index = 1, 30 do
-    index_lines[index] = "line " .. index
-    worktree_lines[index] = index_lines[index]
-  end
-  worktree_lines[1] = "changed line"
-
-  set_named_buffer("scroll-test.txt", worktree_lines)
-  mock_read_index_file(table.concat(index_lines, "\n") .. "\n")
-  trigger_diff_update()
-  expect_hunks(child.api.nvim_get_current_buf())
-  mock_run_diff_cmd("run_diff_cmd_worktree_index", "scroll-test.txt\n")
-
-  child.lua [[M.open_diff_view({ diff_type = "worktree-index" })]]
-  expect_state(function()
-    return #child.api.nvim_list_tabpages() == 2 and #child.api.nvim_tabpage_list_wins(0) == 3
-  end)
-
-  local _, old_win, files_win = get_diff_view_windows "scroll-test.txt"
-  child.wo[old_win].scroll = 1
-  child.api.nvim_set_current_win(files_win)
-  child.lua [[
-    local sleep = vim.async.sleep
-    _G.smooth_scroll_sleep_calls = {}
-    vim.async.sleep = function(ms)
-      if ms == 10 then
-        table.insert(_G.smooth_scroll_sleep_calls, ms)
-      end
-      return sleep(ms)
-    end
-  ]]
 end
 
 local T = new_set {
   hooks = {
     pre_case = function()
       child.restart { "-u", "scripts/minimal_init.lua" }
-      child.lua [[M = require('git-diff')]]
-      child.lua [[M.setup()]]
+      child.lua_func(function()
+        M = require "git-hunks"
+        M.setup()
+      end)
     end,
     post_once = child.stop,
   },
@@ -241,11 +206,11 @@ local T = new_set {
 T["setup"] = new_set()
 
 T["setup"]["creates global keymaps"] = function()
-  -- TODO: verify <Plug>GitDiffNextHunk, <Plug>GitDiffPrevHunk, etc.
+  -- TODO: verify <Plug>GitHunksNextHunk, <Plug>GitHunksPrevHunk, etc.
 end
 
 T["setup"]["creates global autocommands"] = function()
-  -- TODO: verify GitDiff* autocommand groups exist.
+  -- TODO: verify GitHunks* autocommand groups exist.
 end
 
 T["hunk navigation"] = new_set()
@@ -264,7 +229,7 @@ line5
   expect_hunks(bufnr)
 
   child.api.nvim_win_set_cursor(0, { 1, 0 })
-  child.type_keys "<Plug>GitDiffNextHunk"
+  child.type_keys "<Plug>GitHunksNextHunk"
 
   expect_cursor(2)
 end
@@ -283,7 +248,7 @@ line5
   expect_hunks(bufnr)
 
   child.api.nvim_win_set_cursor(0, { 4, 0 })
-  child.type_keys "<Plug>GitDiffPrevHunk"
+  child.type_keys "<Plug>GitHunksPrevHunk"
 
   expect_cursor(2)
 end
@@ -302,7 +267,7 @@ line5
   expect_hunks(bufnr)
 
   child.api.nvim_win_set_cursor(0, { 5, 0 })
-  child.type_keys "<Plug>GitDiffNextHunk"
+  child.type_keys "<Plug>GitHunksNextHunk"
 
   expect_cursor(2)
 end
@@ -321,7 +286,7 @@ line5
   expect_hunks(bufnr)
 
   child.api.nvim_win_set_cursor(0, { 1, 0 })
-  child.type_keys "<Plug>GitDiffPrevHunk"
+  child.type_keys "<Plug>GitHunksPrevHunk"
 
   expect_cursor(4)
 end
@@ -408,7 +373,7 @@ line3
   child.api.nvim_exec_autocmds("User", { pattern = "GitIndexChanged" })
 
   expect_state(function()
-    local ns_id = child.api.nvim_create_namespace "GitDiff"
+    local ns_id = child.api.nvim_create_namespace "GitHunks"
     return #child.api.nvim_buf_get_extmarks(bufnr, ns_id, 0, -1, {}) == 0
   end)
 end
@@ -426,20 +391,27 @@ line2
   mock_read_index_files {}
   child.api.nvim_exec_autocmds("User", { pattern = "GitIndexChanged" })
   expect_state(function()
-    local ns_id = child.api.nvim_create_namespace "GitDiff"
+    local ns_id = child.api.nvim_create_namespace "GitHunks"
     return #child.api.nvim_buf_get_extmarks(bufnr, ns_id, 0, -1, {}) == 0
   end)
 
-  child.lua [[
+  child.lua_func(function()
     _G.last_notification = nil
+    --- @param message string
+    --- @param level vim.log.levels
     vim.notify = function(message, level)
       _G.last_notification = { message, level }
     end
-  ]]
+  end)
   child.api.nvim_win_set_cursor(0, { 2, 0 })
-  child.type_keys "<Plug>GitDiffResetHunk"
+  child.type_keys "<Plug>GitHunksResetHunk"
   expect_lines { "line1", "line2 changed" }
-  eq(child.lua_get "_G.last_notification[1]", "[git-diff.nvim]: Missing diff state for this buffer")
+  eq(
+    child.lua_func(function()
+      return _G.last_notification[1]
+    end),
+    "[git-hunks.nvim]: Missing diff state for this buffer"
+  )
 end
 
 T["reset hunk"] = new_set()
@@ -458,7 +430,7 @@ line5
   expect_hunks(bufnr)
 
   child.api.nvim_win_set_cursor(0, { 2, 0 })
-  child.type_keys "<Plug>GitDiffResetHunk"
+  child.type_keys "<Plug>GitHunksResetHunk"
 
   expect_lines { "line1", "line2", "line3", "line4", "line5" }
 end
@@ -477,7 +449,7 @@ line5
   expect_hunks(bufnr)
 
   child.api.nvim_win_set_cursor(0, { 2, 0 })
-  child.type_keys "<Plug>GitDiffResetHunk"
+  child.type_keys "<Plug>GitHunksResetHunk"
 
   expect_lines { "line1", "line2", "line3", "line4", "line5" }
 end
@@ -496,7 +468,7 @@ line5
   expect_hunks(bufnr)
 
   child.api.nvim_win_set_cursor(0, { 1, 0 })
-  child.type_keys "<Plug>GitDiffResetHunk"
+  child.type_keys "<Plug>GitHunksResetHunk"
 
   expect_lines { "line1", "line2", "line3", "line4", "line5" }
 end
@@ -515,7 +487,7 @@ line5
   expect_hunks(bufnr)
 
   child.api.nvim_win_set_cursor(0, { 4, 0 })
-  child.type_keys "<Plug>GitDiffResetHunk"
+  child.type_keys "<Plug>GitHunksResetHunk"
 
   expect_lines { "line1", "line2 changed", "line3", "line4", "line5" }
 end
@@ -534,7 +506,9 @@ line5
   expect_hunks(bufnr)
 
   child.api.nvim_win_set_cursor(0, { 2, 0 })
-  child.lua [[vim.keymap.set("v", "<F1>", "<Plug>GitDiffResetHunk", { noremap = false, buffer = true, })]]
+  child.lua_func(function()
+    vim.keymap.set("v", "<F1>", "<Plug>GitHunksResetHunk", { noremap = false, buffer = true })
+  end)
   child.type_keys "V"
   child.type_keys "j"
   child.type_keys "<F1>"
@@ -560,145 +534,9 @@ line5
   local bufnr = child.api.nvim_get_current_buf()
   expect_hunks(bufnr)
 
-  child.type_keys "<Plug>GitDiffResetFile"
+  child.type_keys "<Plug>GitHunksResetFile"
 
   expect_lines { "line1", "line2", "line3", "line4", "line5" }
-end
-
-T["diff view"] = new_set()
-
-T["diff view"]["smooth scroll defaults to enabled"] = function()
-  setup_diff_view_scroll_test()
-
-  child.type_keys "<Plug>GitDiffViewScrollDown"
-  eq(child.lua_get "#_G.smooth_scroll_sleep_calls", 1)
-end
-
-T["diff view"]["smooth scroll can be disabled"] = function()
-  child.g.git_diff = { smooth_scroll = false }
-  setup_diff_view_scroll_test()
-
-  child.type_keys "<Plug>GitDiffViewScrollUp"
-  eq(child.lua_get "#_G.smooth_scroll_sleep_calls", 0)
-end
-
-T["diff view"]["opens a diff view tab"] = function()
-  setup_diff_view_test(
-    "test.txt",
-    { "line1 changed", "line2", "line3" },
-    [[line1
-line2
-line3
-]]
-  )
-
-  child.lua [[M.open_diff_view({ diff_type = "worktree-index" })]]
-
-  expect_state(function()
-    return #child.api.nvim_list_tabpages() == 2 and #child.api.nvim_tabpage_list_wins(0) == 3
-  end)
-
-  eq(#child.api.nvim_list_tabpages(), 2)
-  eq(#child.api.nvim_tabpage_list_wins(0), 3)
-
-  local new_win, old_win, files_win = get_diff_view_windows "test.txt"
-
-  eq(get_win_lines(new_win), { "line1 changed", "line2", "line3" })
-  eq(get_win_lines(old_win), { "line1", "line2", "line3" })
-  eq(get_win_lines(files_win), { "test.txt" })
-end
-
-T["diff view"]["updates old/new content on file selection"] = function()
-  set_named_buffer("a.txt", { "a1 changed", "a2" })
-  child.cmd "badd b.txt"
-  local b_bufnr = child.fn.bufnr "b.txt"
-  child.api.nvim_buf_set_lines(b_bufnr, 0, -1, true, { "b1 changed", "b2" })
-
-  mock_read_index_files {
-    ["a.txt"] = "a1\na2\n",
-    ["b.txt"] = "b1\nb2\n",
-  }
-  trigger_diff_update()
-  expect_hunks(child.api.nvim_get_current_buf())
-  mock_run_diff_cmd("run_diff_cmd_worktree_index", "a.txt\nb.txt\n")
-
-  child.lua [[M.open_diff_view({ diff_type = "worktree-index" })]]
-
-  expect_state(function()
-    return #child.api.nvim_list_tabpages() == 2 and #child.api.nvim_tabpage_list_wins(0) == 3
-  end)
-
-  child.type_keys "j"
-
-  expect_state(function()
-    local new_win = get_diff_view_windows "b.txt"
-    return new_win ~= nil
-  end)
-
-  local new_win, old_win = get_diff_view_windows "b.txt"
-  eq(get_win_lines(new_win), { "b1 changed", "b2" })
-  eq(get_win_lines(old_win), { "b1", "b2" })
-end
-
-T["diff view"]["toggles the diff view"] = function()
-  setup_diff_view_test(
-    "test.txt",
-    { "line1 changed", "line2", "line3" },
-    [[line1
-line2
-line3
-]]
-  )
-
-  child.lua [[M.toggle_diff_view({ diff_type = "worktree-index" })]]
-  expect_state(function()
-    return #child.api.nvim_list_tabpages() == 2
-  end)
-  eq(#child.api.nvim_list_tabpages(), 2)
-
-  child.lua [[M.toggle_diff_view({ diff_type = "worktree-index" })]]
-  expect_state(function()
-    return #child.api.nvim_list_tabpages() == 1
-  end)
-  eq(#child.api.nvim_list_tabpages(), 1)
-end
-
-T["diff view"]["closes cleanly"] = new_set {
-  parametrize = {
-    { "new" },
-    { "old" },
-    { "files" },
-  },
-}
-
-T["diff view"]["closes cleanly"]["closes when window closes"] = function(win_name)
-  setup_diff_view_test(
-    "test.txt",
-    { "line1 changed", "line2", "line3" },
-    [[line1
-line2
-line3
-]]
-  )
-
-  child.lua [[M.open_diff_view({ diff_type = "worktree-index" })]]
-  expect_state(function()
-    return #child.api.nvim_list_tabpages() == 2 and #child.api.nvim_tabpage_list_wins(0) == 3
-  end)
-
-  local new_win, old_win, files_win = get_diff_view_windows "test.txt"
-  local win_to_close = ({ new = new_win, old = old_win, files = files_win })[win_name]
-  child.api.nvim_win_close(win_to_close, false)
-  expect_state(function()
-    return #child.api.nvim_list_tabpages() == 1
-  end)
-  eq(#child.api.nvim_list_tabpages(), 1)
-
-  child.lua [[M.open_diff_view({ diff_type = "worktree-index" })]]
-  expect_state(function()
-    return #child.api.nvim_list_tabpages() == 2
-  end)
-  eq(#child.api.nvim_list_tabpages(), 2)
 end
 
 return T
