@@ -1,8 +1,8 @@
 .PHONY: dev clean test lint format docs deploy
 
 dev:
-	mkdir -p ~/.local/share/nvim/site/pack/dev/start/git-diff.nvim
-	stow -d .. -t ~/.local/share/nvim/site/pack/dev/start/git-diff.nvim git-diff.nvim
+	mkdir -p ~/.local/share/nvim/site/pack/dev/start/git-hunks.nvim
+	stow -d .. -t ~/.local/share/nvim/site/pack/dev/start/git-hunks.nvim git-hunks.nvim
 
 clean:
 	rm -rf ~/.local/share/nvim/site/pack/dev
@@ -20,7 +20,7 @@ format:
 
 docs:
 	mkdir -p ./doc
-	./deps/ts-vimdoc.nvim/scripts/docgen.sh README.md doc/git-diff.txt git-diff
+	./deps/ts-vimdoc.nvim/scripts/docgen.sh README.md doc/git-hunks.txt git-hunks
 	nvim --headless -c "helptags doc/" -c "qa"
 
 deploy: test lint format docs

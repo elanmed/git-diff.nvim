@@ -1,0 +1,109 @@
+*git-hunks.txt*                                   Last change: 2026 October 29
+
+==============================================================================
+Table of Contents                                *git-hunks-table-of-contents*
+
+Features ................................................ |git-hunks-features|
+Example config .................................... |git-hunks-example-config|
+Plug remaps .......................................... |git-hunks-plug-remaps|
+`<Plug>GitHunksNextHunk` .................. |git-hunks-<plug>githunksnexthunk|
+`<Plug>GitHunksPrevHunk` .................. |git-hunks-<plug>githunksprevhunk|
+`<Plug>GitHunksResetHunk` ................ |git-hunks-<plug>githunksresethunk|
+`<Plug>GitHunksResetFile` ................ |git-hunks-<plug>githunksresetfile|
+Highlight groups ................................ |git-hunks-highlight-groups|
+Autocommand events ............................ |git-hunks-autocommand-events|
+`User GitIndexChanged` ...................... |git-hunks-user-gitindexchanged|
+`User GitHeadChanged` ........................ |git-hunks-user-githeadchanged|
+
+==============================================================================
+`GIT-HUNKS.NVIM`                                    *git-hunks-git-hunks.nvim*
+
+
+A minimal plugin to navigate and reset git hunks.
+
+
+------------------------------------------------------------------------------
+FEATURES                                                  *git-hunks-features*
+
+
+- Minimal Lua implementation, no dependencies
+- Async diff computation via coroutines (no UI freezing)
+- Signs update on every edit with debouncing (300ms)
+- Watches `.git/index` and `.git/HEAD` for external changes (e.g. `git
+  checkout`, `git stash`, `git reset`)
+- Navigate to next/previous hunk with wrapping
+- Reset a single hunk, a visual selection of hunks, or the entire file
+
+------------------------------------------------------------------------------
+EXAMPLE CONFIG                                      *git-hunks-example-config*
+
+
+>lua
+    vim.keymap.set("n", "]h", "<Plug>GitHunksNextHunk")
+    vim.keymap.set("n", "[h", "<Plug>GitHunksPrevHunk")
+    
+    vim.keymap.set("n", "gh", "<Plug>GitHunksResetHunk")
+    vim.keymap.set("v", "gh", "<Plug>GitHunksResetHunk")
+    vim.keymap.set("n", "gH", "<Plug>GitHunksResetFile")
+<
+
+------------------------------------------------------------------------------
+PLUG REMAPS                                            *git-hunks-plug-remaps*
+
+
+
+                                                                              
+`<PLUG>GITHUNKSNEXTHUNK`                    *git-hunks-<plug>githunksnexthunk*
+
+Navigate to the next hunk. Wraps to the first hunk if none remain.
+
+
+                                                                              
+`<PLUG>GITHUNKSPREVHUNK`                    *git-hunks-<plug>githunksprevhunk*
+
+Navigate to the previous hunk. Wraps to the last hunk if none remain.
+
+
+                                                                              
+`<PLUG>GITHUNKSRESETHUNK`                  *git-hunks-<plug>githunksresethunk*
+
+- In normal mode: reset the hunk on the current line
+- In visual mode: reset all hunks that overlap with the visual selection
+
+                                                                              
+`<PLUG>GITHUNKSRESETFILE`                  *git-hunks-<plug>githunksresetfile*
+
+Reset the entire file to the index version.
+
+
+------------------------------------------------------------------------------
+HIGHLIGHT GROUPS                                  *git-hunks-highlight-groups*
+
+
+| Group            | Default link | Used for       |
+| ---------------- | ------------ | -------------- |
+| `DiffSignDelete` | `DiffDelete` | Deleted lines  |
+| `DiffSignAdd`    | `DiffAdd`    | Added lines    |
+| `DiffSignChange` | `DiffChange` | Modified lines |
+
+
+------------------------------------------------------------------------------
+AUTOCOMMAND EVENTS                              *git-hunks-autocommand-events*
+
+
+
+                                                                              
+`USER GITINDEXCHANGED`                        *git-hunks-user-gitindexchanged*
+
+Fired when `.git/index` changes on disk (e.g. `git add`, `git checkout`, `git
+stash`, `git reset`).
+
+
+                                                                              
+`USER GITHEADCHANGED`                          *git-hunks-user-githeadchanged*
+
+Fired when `.git/HEAD` changes on disk (e.g. `git checkout <branch>`, `git
+reset --hard`).
+
+
+vim:tw=78:ts=8:ft=help:norl:
